@@ -4,33 +4,40 @@
     const fs = require("fs");
     const assistantFilePath = "./assistant/assistant.json";
     const ASSISTANT_CONFIGURATION = require('../assistant/assistant.json');
-    const { schedule_appointment_config } = require('../src/tools/schedule-appointment.ts');
     const { capture_lead_config } = require('../src/tools/capture-lead.ts');
-    const { search_real_estate_listings_config } = require('../src/tools/search-real-estate-listings.ts');
-    const { database_search_config } = require('../src/tools/database-search.ts');
+    const { capture_complaint_config } = require('../src/tools/capture-complaint.ts');
+    // const { fetch_data_config } = require('../src/tools/fetch-data.ts');
+    // const { fetch_own_transport_config } = require('../src/tools/fetch-own-transport.ts');
+    // const { fetch_cruise_config } = require('../src/tools/fetch-cruise.ts');
+
     require('dotenv').config();
 
     const OPENAI_API_KEY = process.env['OPENAI_API_KEY'];
     const openai = new OpenAI({
-    apiKey: OPENAI_API_KEY,
+        apiKey: OPENAI_API_KEY,
     });
-    
+
     const assistantConfig = {
         name: "",
-        // This will be populated in the updateAssistant call
         instructions: "",
         model: "",
-        // dynamically import the tools here
         tools: [
-            { "type": "retrieval" },
             { "type": "code_interpreter" },
-            schedule_appointment_config,
+            { "type": "file_search" },
             capture_lead_config,
-            search_real_estate_listings_config,
-            database_search_config
+            capture_complaint_config,
+            // fetch_data_config,
+            // fetch_cruise_config,
+            // fetch_own_transport_config
         ],
-        // This will be populated in the updateAssistant call
-        file_ids: []
+        tool_resources: {
+            "file_search": {
+                "vector_store_ids": []
+            },
+            "code_interpreter": {
+                "file_ids": []
+            }
+        }
     };
 
     async function updateAssistant() {
@@ -44,19 +51,19 @@
         // Prepare the new configuration
 
         // Read all files from the resources directory and upload them
-        const files =  await fsPromises.readdir('./resources');
+        const files = await fsPromises.readdir('./resources');
         const filteredFiles = files.filter(name => name !== '.DS_Store');
 
         const uploadPromises = filteredFiles.map(async (fileName) => {
-            const filePah = `./resources/${fileName}`;
+            const filePath = `./resources/${fileName}`;
             // Upload the file
             try {
                 const file = await openai.files.create({
-                    file: fs.createReadStream(filePah),
+                    file: fs.createReadStream(filePath),
                     purpose: "assistants",
                 });
                 return file.id;
-            } catch(e) {
+            } catch (e) {
                 return null
             }
         });
@@ -65,7 +72,7 @@
         const filteredFileIds = fileIds.filter(id => id); // take only truthty values
 
         // // Gather the assistant instructions
-        const instructionsFilePath =  './instructions/instructions.txt';
+        const instructionsFilePath = './instructions/instructions.txt';
         const assistantInstructions = await fsPromises.readFile(
             instructionsFilePath,
             "utf8"
@@ -79,13 +86,13 @@
         // Put the newly provided model
         assistantConfig.model = ASSISTANT_CONFIGURATION.model;
         // Update the filed ids
-        assistantConfig.file_ids = filteredFileIds;
+        assistantConfig.tool_resources.code_interpreter.file_ids = filteredFileIds;
         // The tools are provided in the basic config creation on row 15
 
 
         await openai.beta.assistants.update(ASSISTANT_CONFIGURATION.assistantId, {
             ...assistantConfig
-          });
+        });
 
         console.log(`Assistant with id ${ASSISTANT_CONFIGURATION.assistantId} is updated sucessfully`);
 

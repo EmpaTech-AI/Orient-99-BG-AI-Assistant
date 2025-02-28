@@ -3,10 +3,12 @@
     const fsPromises = require("fs").promises;
     const fs = require("fs");
     const assistantFilePath = "./assistant/assistant.json";
-    const { schedule_appointment_config } = require('../src/tools/schedule-appointment.ts');
     const { capture_lead_config } = require('../src/tools/capture-lead.ts');
-    const { search_real_estate_listings_config } = require('../src/tools/search-real-estate-listings');
-    const { database_search_config } = require('../src/tools/database-search.ts');
+    const { capture_complaint_config } = require('../src/tools/capture-complaint.ts');
+    // const { fetch_data_config } = require('../src/tools/fetch-data.ts');
+    // const { fetch_cruise_config } = require('../src/tools/fetch-cruise.ts');
+    // const { fetch_own_transport_config } = require('../src/tools/fetch-own-transport.ts');
+    
     require('dotenv').config();
 
     const OPENAI_API_KEY = process.env['OPENAI_API_KEY'];
@@ -14,23 +16,28 @@
     const openai = new OpenAI({
     apiKey: OPENAI_API_KEY,
     });
-        
+
     const assistantConfig = {
-        name: "Demo Assistant dev",
-        // This will be populated in the createNewAssistant call
+        name: "EkvatorBG AI Assistant",
         instructions: "",
-        model: "gpt-4-1106-preview",
-        // dynamically import the tools here
+        model: "gpt-4o",
         tools: [
-            { "type": "retrieval" },
             { "type": "code_interpreter" },
-            schedule_appointment_config,
+            { "type": "file_search" },
             capture_lead_config,
-            search_real_estate_listings_config,
-            database_search_config,
+            capture_complaint_config,
+            // fetch_data_config,
+            // fetch_own_transport_config,
+            // fetch_cruise_config,
         ],
-        // This will be populated in the createNewAssistant call
-        file_ids: []
+        tool_resources: {
+            "file_search": {
+                "vector_store_ids": []
+            },
+            "code_interpreter": {
+                "file_ids": []
+            }
+        }
     };
 
     async function createNewAssistant() {
@@ -41,11 +48,11 @@
         const filteredFiles = files.filter(name => name !== '.DS_Store');
 
         const uploadPromises = filteredFiles.map(async (fileName) => {
-            const filePah = `./resources/${fileName}`;
+            const filePath = `./resources/${fileName}`;
             // Upload the file
             try {
                 const file = await openai.files.create({
-                    file: fs.createReadStream(filePah),
+                    file: fs.createReadStream(filePath),
                     purpose: "assistants",
                 });
                 return file.id;
@@ -65,7 +72,7 @@
         );
 
         // Update the assistant config with the newly obtained data fileds
-        assistantConfig.file_ids = filteredFileIds;
+        assistantConfig.tool_resources.code_interpreter.file_ids = filteredFileIds;
         assistantConfig.instructions = assistantInstructions;
 
         // // @ts-ignore

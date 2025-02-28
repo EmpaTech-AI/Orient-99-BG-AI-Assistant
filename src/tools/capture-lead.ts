@@ -22,13 +22,13 @@
             "description": "Email address of the lead.",
             "format": "email"
           },
-          "question": {
+          "query": {
             "type": "string",
             "description":
               "Details of the lead's inquiry"
           }
         },
-        "required": ["name", "phone", "email", "question"]
+        "required": ["name", "phone", "email", "query"]
       }
     }
   }
@@ -38,35 +38,23 @@
     return re.test(email);
   }
 
-  // Validate phone number format (E.164 format)
-  function validatePhone(phone) {
-    var re = /^[+]*[(]{0,1}[0-9]{1,3}[)]{0,1}[-\s\./0-9]*$/g;
-    return re.test(phone);
-  }
-
   // # The callback function (Adds lead to Airtable)
   async function capture_lead(params) {
-    // Extracting information from arguments
-    const { name, phone, email, question } = params;
 
-    if (!name || !phone || !email || !question) {
-      return "Missing required information. Please provide name, phone, email, and question";
+    const { name, phone, email, query } = params;
+
+    if (!name || !phone || !email || !query) {
+      return "Missing required information. Please provide name, phone, email, and query";
     }
 
     if (!validateEmail(email)) {
       return "Invalid email format. Please provide a valid email address.";
     }
 
-    if (!validatePhone(phone)) {
-      return "Invalid phone number format. Please provide a valid phone number.";
-    }
-
-    // Environment variable for Airtable API URL
-    const AIRTABLE_BASE_ID = process.env['AIRTABLE_BASE_ID'];
-    const AIRTABLE_API_KEY = process.env['AIRTABLE_API_KEY'];
+    const AIRTABLE_BASE_ID = process.env['LEADS_AIRTABLE_BASE_ID'];
+    const AIRTABLE_API_KEY = process.env['LEADS_AIRTABLE_API_KEY'];
     const URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Leads`;
 
-    // headers
     const headers = {
       "Authorization": `Bearer ${AIRTABLE_API_KEY}`,
       "Content-Type": "application/json"
@@ -79,7 +67,7 @@
           "Name": name,
           "Phone": phone,
           "Email": email,
-          "Question": question
+          "Query": query
         }
       }]
     }

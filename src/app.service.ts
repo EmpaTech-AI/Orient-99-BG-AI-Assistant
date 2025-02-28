@@ -5,10 +5,13 @@ import { HttpService } from '@nestjs/axios';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { SECONDS, USER_ROLES } from './interfaces/enums';
-const { schedule_appointment } = require('./tools/schedule-appointment');
 const { capture_lead } = require('./tools/capture-lead');
-const { search_real_estate_listings } = require('./tools/search-real-estate-listings');
-const { database_search } = require('./tools/database-search');
+const { capture_complaint } = require('./tools/capture-complaint');
+// const { fetch_data } = require('./tools/fetch-data');
+// const { fetch_cruise } = require('./tools/fetch-cruise');
+// const { fetch_own_transport } = require('./tools/fetch-own-transport');
+
+
 require('dotenv').config();
 
 @Injectable()
@@ -21,7 +24,6 @@ export class AppService {
     this.openai = new OpenAI({
       apiKey: OPENAI_API_KEY,
     });
-
   };
 
   async start(): Promise<CreateThreadDto> {
@@ -39,6 +41,12 @@ export class AppService {
     const { thread_id, message } = data;
 
     try {
+
+      const activeRun = await this.getActiveRun(thread_id);
+      if (activeRun) {
+        return { response: "Моля изчакайте, генерирам отговор." };
+      }
+
       // Pass in the user question into the existing thread
       await this.openai.beta.threads.messages.create(thread_id, {
         role: USER_ROLES.USER,
@@ -55,11 +63,11 @@ export class AppService {
 
       // Find the last message for the current run
       const lastMessageForRun = await this.getLatestMessageFromThread(thread_id, run.id);
-
       // @ts-ignore
       return { response: lastMessageForRun.content[0].text.value };
     } catch (e) {
       console.log(`Error while trying to chat with the assistant: ${e}`);
+      return { response: "Моля изчакайте, генерирам отговор." };
     }
   }
 
@@ -95,10 +103,11 @@ export class AppService {
         const toolOutputs = [];
 
         const SUPPORTED_ACTIONS = {
-          'schedule_appointment': schedule_appointment,
           'capture_lead': capture_lead,
-          // 'search_real_estate_listings': search_real_estate_listings,
-          'database_search': database_search,
+          'capture_complaint': capture_complaint,
+          // 'fetch_data': fetch_data,
+          // 'fetch_cruise': fetch_cruise,
+          // 'fetch_own_transport': fetch_own_transport
         };
 
         for (const toolCall of toolCalls) {
@@ -112,9 +121,13 @@ export class AppService {
             // Dynamically call the function with arguments
             const output = await SUPPORTED_ACTIONS[functionName].apply(null, [args]);
 
+            console.log(output.toString())
+
+            const outputString = typeof output === 'string' ? output : JSON.stringify(output);
+
             toolOutputs.push({
               tool_call_id: toolCall.id,
-              output: output,
+              output: outputString,
             });
           } else {
             console.log(`This question requires us to call a function: ${functionName} which is not supported !`);
@@ -155,7 +168,7 @@ export class AppService {
    * @param run_id 
    * @returns 
    */
-  private async getLatestMessageFromThread(thread_id: string, run_id): Promise<OpenAI.Beta.Threads.Messages.ThreadMessage> {
+  private async getLatestMessageFromThread(thread_id: string, run_id): Promise<OpenAI.Beta.Threads.Messages.Message> {
     // Get the last assistant message from the messages array
     const messages = await this.openai.beta.threads.messages.list(thread_id);
 
@@ -165,8 +178,12 @@ export class AppService {
           message.run_id === run_id && message.role === USER_ROLES.ASSISTANT
       )
       .pop();
-
     return lastMessageForRun;
+  }
+
+  private async getActiveRun(thread_id: string): Promise<OpenAI.Beta.Threads.Runs.Run | null> {
+    const runs = await this.openai.beta.threads.runs.list(thread_id);
+    return runs.data.find(run => run.status === 'in_progress') || null;
   }
 }
 

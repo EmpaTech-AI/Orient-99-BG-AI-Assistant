@@ -5,7 +5,7 @@ export class CreateMessageDto {
   @IsString()
   thread_id: string;
 
-  @MinLength(10)
+  @MinLength(1)
   @IsString()
   message: string;
 }
