@@ -3,25 +3,24 @@
 
   const config = {
     "type": "function",
-    "function": {
-      "name": "capture_complaint",
-      "description": "Collects and stores information about complaints in an Airtable.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "phone": {
-            "type": "string",
-            "description": "Phone number of the lead.",
-          },
-          "note": {
-            "type": "string",
-            "description":
-              "Details of the complaint."
-          }
+    "name": "capture_complaint",
+    "description": "Collects and stores complaints in Airtable.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the lead.",
         },
-        "required": ["phone", "note"]
-      }
-    }
+        "note": {
+          "type": "string",
+          "description":
+            "Details of the complaint."
+        }
+      },
+      "required": ["phone", "note"]
+    },
+    "strict": false
   }
 
   function validatePhone(phone) {
@@ -40,8 +39,8 @@
       return "Invalid phone number format. Please provide a valid phone number.";
     }
 
-    const AIRTABLE_BASE_ID = process.env['LEADS_AIRTABLE_BASE_ID'];
-    const AIRTABLE_API_KEY = process.env['LEADS_AIRTABLE_API_KEY'];
+    const AIRTABLE_BASE_ID = process.env['AIRTABLE_BASE_ID'];
+    const AIRTABLE_API_KEY = process.env['AIRTABLE_API_KEY'];
     const URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Complaints`;
 
     const headers = {

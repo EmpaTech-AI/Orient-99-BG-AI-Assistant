@@ -3,34 +3,33 @@
 
   const config = {
     "type": "function",
-    "function": {
-      "name": "capture_lead",
-      "description": "Collects and stores dentist patient lead information in Airtable.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Name of the lead."
-          },
-          "phone": {
-            "type": "string",
-            "description": "Phone number of the lead.",
-          },
-          "email": {
-            "type": "string",
-            "description": "Email address of the lead.",
-            "format": "email"
-          },
-          "query": {
-            "type": "string",
-            "description":
-              "Details of the lead's inquiry"
-          }
+    "name": "capture_lead",
+    "description": "Collects and stores lead information in Airtable.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the lead."
         },
-        "required": ["name", "phone", "email", "query"]
-      }
-    }
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the lead.",
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the lead.",
+          "format": "email"
+        },
+        "query": {
+          "type": "string",
+          "description":
+            "Details of the lead's inquiry"
+        }
+      },
+      "required": ["name", "phone", "email", "query"]
+    },
+    "strict": false
   }
 
   function validateEmail(email) {
@@ -51,8 +50,8 @@
       return "Invalid email format. Please provide a valid email address.";
     }
 
-    const AIRTABLE_BASE_ID = process.env['LEADS_AIRTABLE_BASE_ID'];
-    const AIRTABLE_API_KEY = process.env['LEADS_AIRTABLE_API_KEY'];
+    const AIRTABLE_BASE_ID = process.env['AIRTABLE_BASE_ID'];
+    const AIRTABLE_API_KEY = process.env['AIRTABLE_API_KEY'];
     const URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Leads`;
 
     const headers = {
