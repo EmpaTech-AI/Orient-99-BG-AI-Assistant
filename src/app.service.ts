@@ -28,7 +28,8 @@ export class AppService {
       const conversation = await this.openai.conversations.create({});
       return new CreateThreadDto(conversation.id);
     } catch (e) {
-      console.log(`Error occured while trying to start a conversation: ${e}`)
+      console.log(`Error occured while trying to start a conversation: ${e}`);
+      return new CreateThreadDto(null);
     }
   }
 
