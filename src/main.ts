@@ -5,7 +5,14 @@ import { CheckApiKeyMiddleware } from './middleware/check-api-key.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
+  // Allow the webchat widget (served from a different origin) to call this API
+  app.enableCors({
+    origin: true,
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'x-api-key'],
+  });
+
   // Apply the CheckApiKeyMiddleware globally
   app.use(new CheckApiKeyMiddleware().use);
 
