@@ -6,3 +6,9 @@ export enum USER_ROLES {
 export enum SECONDS {
     FIVE = 5000
 };
+
+export enum CHANNELS {
+    WEBCHAT = 'webchat',
+    MESSENGER = 'messenger',
+    INSTAGRAM = 'instagram'
+};

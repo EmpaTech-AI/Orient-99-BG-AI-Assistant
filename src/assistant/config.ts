@@ -1,4 +1,5 @@
 import { AXEL_INSTRUCTIONS } from './instructions';
+import { CHANNELS } from '../interfaces/enums';
 
 const { capture_lead_config, capture_lead } = require('../tools/capture-lead');
 const { capture_complaint_config, capture_complaint } = require('../tools/capture-complaint');
@@ -9,6 +10,14 @@ const { transfer_to_human_config, transfer_to_human } = require('../tools/transf
 export const MODEL = 'gpt-4o';
 
 export const INSTRUCTIONS = AXEL_INSTRUCTIONS;
+
+// Social channels (Messenger, Instagram) are reached through GHL/Make.com,
+// which forward the client's channel alongside the message. Webchat is
+// unrestricted and keeps its existing behavior.
+export const CHANNEL_CHAR_LIMITS: Partial<Record<CHANNELS, number>> = {
+  [CHANNELS.MESSENGER]: 600,
+  [CHANNELS.INSTAGRAM]: 450,
+};
 
 // Vector store / files backing the assistant's knowledge base, mirrored
 // from the live OpenAI assistant (asst_wbikeqOeWoxbLxRAE5VlrhJr) as of 2026-07-23.
