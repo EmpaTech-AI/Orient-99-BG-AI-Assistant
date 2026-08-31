@@ -10,6 +10,20 @@ require('dotenv').config();
 
 const MAX_TOOL_CALL_ROUNDS = 8;
 
+// Requires an explicit "talk to a [real] person/operator/rep" construct, not
+// just the bare word "човек" (which routinely appears in "2 човека" party-size
+// answers to the mandatory questionnaire and would false-positive constantly).
+const HUMAN_HANDOFF_PATTERN = /(говор[а-яА-Я]*|свърж[а-яА-Я]*)\s+(ме\s+)?с\s+(истински\s+|жив\s+)?(човек|оператор|представител|служител|агент)|не искам( да говоря)? с бот|дай ми (телефон на )?(служител|оператор|представител)|искам (истински |жив )?(оператор|представител)/i;
+
+const HUMAN_HANDOFF_FALLBACK_MESSAGE = `Разбирам, че желаете да говорите с наш екип. Вашето запитване е пренасочено към оператор от екипа на Orient99.
+
+Национален телефон: 0700 144 34
+Пловдив: 032 622 174
+София: 00359 2 987 01 07
+Email: office@orient99.com
+
+Ако желаете да продължите разговора с AI асистента, напишете: продължи разговора`;
+
 @Injectable()
 export class AppService {
   private openai: OpenAI;
@@ -38,6 +52,11 @@ export class AppService {
     const channel = data.channel ?? CHANNELS.WEBCHAT;
     const instructions = this.buildInstructions(channel);
 
+    if (data.ai_paused) {
+      console.log(`[${channel}] AI paused for ${thread_id}, skipping reply for message: ${message}`);
+      return { response: null, ai_paused: true };
+    }
+
     try {
       let response = await this.openai.responses.create({
         model: MODEL,
@@ -47,10 +66,24 @@ export class AppService {
         input: [{ role: USER_ROLES.USER, content: message }],
       });
 
-      response = await this.resolveToolCalls(thread_id, instructions, response);
+      const calledTools = new Set<string>();
+      response = await this.resolveToolCalls(thread_id, instructions, response, channel, calledTools);
 
       if (!response.output_text) {
         throw new Error('Model returned an empty response');
+      }
+
+      if (HUMAN_HANDOFF_PATTERN.test(message) && !calledTools.has('transfer_to_human')) {
+        console.log(`[${channel}] Human handoff phrase detected but transfer_to_human wasn't called - forcing it.`);
+
+        await SUPPORTED_ACTIONS['transfer_to_human'].apply(null, [
+          { reason: 'Клиентът поиска да говори с оператор/представител.', customer_message: message, customer_name: '' },
+          { thread_id, channel },
+        ]);
+
+        const forcedResponse = this.enforceChannelLimit(HUMAN_HANDOFF_FALLBACK_MESSAGE, channel);
+        console.log(`[${channel}] Reply (${forcedResponse.length} chars, forced handoff): ${forcedResponse}`);
+        return { response: forcedResponse };
       }
 
       let outputText = this.stripOfferImage(response.output_text, channel);
@@ -68,7 +101,7 @@ export class AppService {
             content: 'Линкът за резервация в предходния отговор излезе отрязан/непълен. Изпрати повторно СЪЩАТА единствена оферта в пълния формат, но този път задължително с целия суров booking линк докрай, дори ако се наложи да съкратиш уводното изречение.',
           }],
         });
-        retry = await this.resolveToolCalls(thread_id, instructions, retry);
+        retry = await this.resolveToolCalls(thread_id, instructions, retry, channel, calledTools);
 
         const retryText = retry.output_text ? this.stripOfferImage(retry.output_text, channel) : '';
         if (retryText && !this.isReservationLinkBroken(retryText)) {
@@ -91,10 +124,12 @@ export class AppService {
    * Webchat is left untouched to preserve existing behavior.
    */
   private buildInstructions(channel: CHANNELS): string {
+    const escalationReminder = '🚨 TOP PRIORITY - HUMAN ESCALATION\nIf the client\'s message expresses ANY desire to talk to a human, a real person, an operator, or a representative (e.g. "искам да говоря с човек", "дай ми оператор", "не искам бот", "свържете ме с представител"), you MUST call the transfer_to_human function as the very first action this turn - before writing any other reply, before asking clarifying questions, and before offering unrelated content. This overrides every other rule below, including the mandatory questionnaire.\n\n';
+
     const limit = CHANNEL_CHAR_LIMITS[channel];
 
     if (!limit) {
-      return INSTRUCTIONS;
+      return escalationReminder + INSTRUCTIONS;
     }
 
     const softTarget = Math.round(limit * 0.8);
@@ -102,7 +137,7 @@ export class AppService {
       ? 'Do NOT include the "![...](...)" image/thumbnail line at all on this channel - go straight from the intro to the offer fields. This frees up room so the booking URL always fits.'
       : 'Keep the image, all mandatory fields, and the full raw booking URL.';
 
-    return `${INSTRUCTIONS}\n\n🚨 CHANNEL LENGTH LIMIT\nThis reply is being sent over ${channel}. Your entire response MUST NOT exceed ${limit} characters, including spaces and formatting. Aim to comfortably finish within ${softTarget} characters, leaving margin so you never run out of room mid-sentence.\nTo stay within that limit, present EXACTLY ONE offer or hotel per response on this channel - never 2 or 3, even where webchat normally would. Pick the single best match.\nThat one offer MUST always be complete and MUST NOT be cut off or shortened: ${imageRule} Pair it with a short one-sentence intro.\nThe booking URL is the single most important part of the reply. NEVER trail off with "..." instead of writing it out, and NEVER end the reservation line without the full URL. If you are running low on room, shorten or drop the intro sentence first - never the URL.\nOutput the booking URL as a bare raw link (no "[линк](...)" or other markdown wrapping) - it is shorter and matches the required raw-URL format.\nSkip the "*Имайте предвид, че цените на офертите са ориентировъчни.*" disclaimer line on this channel - do not include it.`;
+    return `${escalationReminder}${INSTRUCTIONS}\n\n🚨 CHANNEL LENGTH LIMIT\nThis reply is being sent over ${channel}. Your entire response MUST NOT exceed ${limit} characters, including spaces and formatting. Aim to comfortably finish within ${softTarget} characters, leaving margin so you never run out of room mid-sentence.\nTo stay within that limit, present EXACTLY ONE offer or hotel per response on this channel - never 2 or 3, even where webchat normally would. Pick the single best match.\nThat one offer MUST always be complete and MUST NOT be cut off or shortened: ${imageRule} Pair it with a short one-sentence intro.\nThe booking URL is the single most important part of the reply. NEVER trail off with "..." instead of writing it out, and NEVER end the reservation line without the full URL. If you are running low on room, shorten or drop the intro sentence first - never the URL.\nOutput the booking URL as a bare raw link (no "[линк](...)" or other markdown wrapping) - it is shorter and matches the required raw-URL format.\nSkip the "*Имайте предвид, че цените на офертите са ориентировъчни.*" disclaimer line on this channel - do not include it.`;
   }
 
   /**
@@ -166,7 +201,7 @@ export class AppService {
    * outputs back into the same conversation, repeating until the model
    * stops calling tools (or MAX_TOOL_CALL_ROUNDS is reached).
    */
-  private async resolveToolCalls(thread_id: string, instructions: string, response: OpenAI.Responses.Response): Promise<OpenAI.Responses.Response> {
+  private async resolveToolCalls(thread_id: string, instructions: string, response: OpenAI.Responses.Response, channel: CHANNELS, calledTools: Set<string>): Promise<OpenAI.Responses.Response> {
     let rounds = 0;
 
     while (response.output.some((item) => item.type === 'function_call') && rounds < MAX_TOOL_CALL_ROUNDS) {
@@ -183,9 +218,10 @@ export class AppService {
 
         if (SUPPORTED_ACTIONS[functionName]) {
           console.log(`This question requires us to call a function: ${functionName}`);
+          calledTools.add(functionName);
 
           const args = JSON.parse(call.arguments);
-          const output = await SUPPORTED_ACTIONS[functionName].apply(null, [args]);
+          const output = await SUPPORTED_ACTIONS[functionName].apply(null, [args, { thread_id, channel }]);
 
           console.log(output?.toString());
 
