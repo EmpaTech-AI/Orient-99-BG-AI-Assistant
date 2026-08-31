@@ -61,11 +61,6 @@ export class AppService {
   async chat(data: CreateMessageDto): Promise<any> {
     const channel = data.channel ?? CHANNELS.WEBCHAT;
 
-    if (data.ai_paused) {
-      console.log(`[${channel}] AI paused for ${data.thread_id}, skipping reply for message: ${data.message}`);
-      return { response: null, ai_paused: true };
-    }
-
     let timeoutHandle: NodeJS.Timeout;
     const timeout = new Promise<any>((resolve) => {
       timeoutHandle = setTimeout(() => {

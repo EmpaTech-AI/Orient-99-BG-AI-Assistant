@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { CHANNELS } from '../interfaces/enums';
 
 export class CreateMessageDto {
@@ -15,12 +15,6 @@ export class CreateMessageDto {
   @IsOptional()
   @IsEnum(CHANNELS)
   channel?: CHANNELS;
-
-  // True when a human agent has taken over this conversation in GHL - the
-  // AI must stay silent so it doesn't talk over them. Defaults to false.
-  @IsOptional()
-  @IsBoolean()
-  ai_paused?: boolean;
 
   // The GHL contact id (not the OpenAI conversation id) - GHL/Make.com forward
   // this so transfer_to_human can identify the contact record to flag/stop.
