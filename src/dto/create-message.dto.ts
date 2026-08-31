@@ -21,4 +21,10 @@ export class CreateMessageDto {
   @IsOptional()
   @IsBoolean()
   ai_paused?: boolean;
+
+  // The GHL contact id (not the OpenAI conversation id) - GHL/Make.com forward
+  // this so transfer_to_human can identify the contact record to flag/stop.
+  @IsOptional()
+  @IsString()
+  contact_id?: string;
 }

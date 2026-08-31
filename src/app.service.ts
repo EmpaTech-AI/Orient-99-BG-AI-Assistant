@@ -48,7 +48,7 @@ export class AppService {
   }
 
   async chat(data: CreateMessageDto): Promise<any> {
-    const { thread_id, message } = data;
+    const { thread_id, message, contact_id } = data;
     const channel = data.channel ?? CHANNELS.WEBCHAT;
     const instructions = this.buildInstructions(channel);
 
@@ -67,7 +67,7 @@ export class AppService {
       });
 
       const calledTools = new Set<string>();
-      response = await this.resolveToolCalls(thread_id, instructions, response, channel, calledTools);
+      response = await this.resolveToolCalls(thread_id, instructions, response, channel, calledTools, contact_id);
 
       if (!response.output_text) {
         throw new Error('Model returned an empty response');
@@ -78,7 +78,7 @@ export class AppService {
 
         await SUPPORTED_ACTIONS['transfer_to_human'].apply(null, [
           { reason: 'Клиентът поиска да говори с оператор/представител.', customer_message: message, customer_name: '' },
-          { thread_id, channel },
+          { thread_id, channel, contact_id },
         ]);
 
         const forcedResponse = this.enforceChannelLimit(HUMAN_HANDOFF_FALLBACK_MESSAGE, channel);
@@ -101,7 +101,7 @@ export class AppService {
             content: 'Линкът за резервация в предходния отговор излезе отрязан/непълен. Изпрати повторно СЪЩАТА единствена оферта в пълния формат, но този път задължително с целия суров booking линк докрай, дори ако се наложи да съкратиш уводното изречение.',
           }],
         });
-        retry = await this.resolveToolCalls(thread_id, instructions, retry, channel, calledTools);
+        retry = await this.resolveToolCalls(thread_id, instructions, retry, channel, calledTools, contact_id);
 
         const retryText = retry.output_text ? this.stripOfferImage(retry.output_text, channel) : '';
         if (retryText && !this.isReservationLinkBroken(retryText)) {
@@ -201,7 +201,7 @@ export class AppService {
    * outputs back into the same conversation, repeating until the model
    * stops calling tools (or MAX_TOOL_CALL_ROUNDS is reached).
    */
-  private async resolveToolCalls(thread_id: string, instructions: string, response: OpenAI.Responses.Response, channel: CHANNELS, calledTools: Set<string>): Promise<OpenAI.Responses.Response> {
+  private async resolveToolCalls(thread_id: string, instructions: string, response: OpenAI.Responses.Response, channel: CHANNELS, calledTools: Set<string>, contact_id?: string): Promise<OpenAI.Responses.Response> {
     let rounds = 0;
 
     while (response.output.some((item) => item.type === 'function_call') && rounds < MAX_TOOL_CALL_ROUNDS) {
@@ -221,7 +221,7 @@ export class AppService {
           calledTools.add(functionName);
 
           const args = JSON.parse(call.arguments);
-          const output = await SUPPORTED_ACTIONS[functionName].apply(null, [args, { thread_id, channel }]);
+          const output = await SUPPORTED_ACTIONS[functionName].apply(null, [args, { thread_id, channel, contact_id }]);
 
           console.log(output?.toString());
 

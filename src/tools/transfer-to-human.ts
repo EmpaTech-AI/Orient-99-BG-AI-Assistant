@@ -29,7 +29,7 @@
   // # The callback function (notifies the team via the Make.com handoff webhook)
   async function transfer_to_human(params, context) {
     const { reason, customer_message, customer_name } = params || {};
-    const { thread_id, channel } = context || {};
+    const { thread_id, channel, contact_id } = context || {};
 
     const HUMAN_HANDOFF_WEBHOOK_URL = process.env['HUMAN_HANDOFF_WEBHOOK_URL'];
 
@@ -40,8 +40,11 @@
 
     const now = new Date();
 
+    // contact_id is the GHL contact record id (needed to flag/stop automation
+    // there). It's only known on Messenger/Instagram, where GHL/Make.com send
+    // it - webchat has no GHL contact, so it falls back to the conversation id.
     const payload = {
-      contact_id: thread_id || '',
+      contact_id: contact_id || thread_id || '',
       channel: channel || 'webchat',
       customer_message: customer_message || '',
       reason: reason || '',
