@@ -10,6 +10,17 @@ require('dotenv').config();
 
 const MAX_TOOL_CALL_ROUNDS = 8;
 
+// Make.com's HTTP module times out its own request at 40s with no reply at
+// all reaching the client. We bail out with a real (if generic) answer a
+// bit earlier than that instead, so the client always gets something.
+const REQUEST_TIMEOUT_MS = 32000;
+
+// Only attempt the broken-link retry (a full extra OpenAI round-trip) if
+// there's realistically enough time left in the budget above for it -
+// otherwise skip it and return what we already have rather than risk the
+// overall request timeout.
+const RETRY_TIME_BUDGET_MS = 18000;
+
 // Requires an explicit "talk to a [real] person/operator/rep" construct, not
 // just the bare word "човек" (which routinely appears in "2 човека" party-size
 // answers to the mandatory questionnaire and would false-positive constantly).
@@ -48,14 +59,32 @@ export class AppService {
   }
 
   async chat(data: CreateMessageDto): Promise<any> {
-    const { thread_id, message, contact_id } = data;
     const channel = data.channel ?? CHANNELS.WEBCHAT;
-    const instructions = this.buildInstructions(channel);
 
     if (data.ai_paused) {
-      console.log(`[${channel}] AI paused for ${thread_id}, skipping reply for message: ${message}`);
+      console.log(`[${channel}] AI paused for ${data.thread_id}, skipping reply for message: ${data.message}`);
       return { response: null, ai_paused: true };
     }
+
+    let timeoutHandle: NodeJS.Timeout;
+    const timeout = new Promise<any>((resolve) => {
+      timeoutHandle = setTimeout(() => {
+        console.log(`[${channel}] Request exceeded ${REQUEST_TIMEOUT_MS}ms, returning a fallback reply instead of letting the caller time out with nothing.`);
+        resolve({ response: "Моля изчакайте, генерирам отговор." });
+      }, REQUEST_TIMEOUT_MS);
+    });
+
+    try {
+      return await Promise.race([this.chatCore(data, channel), timeout]);
+    } finally {
+      clearTimeout(timeoutHandle);
+    }
+  }
+
+  private async chatCore(data: CreateMessageDto, channel: CHANNELS): Promise<any> {
+    const { thread_id, message, contact_id } = data;
+    const instructions = this.buildInstructions(channel);
+    const startedAt = Date.now();
 
     try {
       let response = await this.openai.responses.create({
@@ -88,7 +117,7 @@ export class AppService {
 
       let outputText = this.stripOfferImage(response.output_text, channel);
 
-      if (CHANNEL_CHAR_LIMITS[channel] && this.isReservationLinkBroken(outputText)) {
+      if (CHANNEL_CHAR_LIMITS[channel] && this.isReservationLinkBroken(outputText) && Date.now() - startedAt < RETRY_TIME_BUDGET_MS) {
         console.log(`[${channel}] Booking link looked cut off, retrying once...`);
 
         let retry = await this.openai.responses.create({
