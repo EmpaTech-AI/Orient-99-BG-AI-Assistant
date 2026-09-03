@@ -5,7 +5,10 @@ const { capture_lead_config, capture_lead } = require('../tools/capture-lead');
 const { capture_complaint_config, capture_complaint } = require('../tools/capture-complaint');
 const { fetch_date_config, fetch_date } = require('../tools/fetch-date');
 const { fetch_time_config, fetch_time } = require('../tools/fetch-time');
-const { transfer_to_human_config, transfer_to_human } = require('../tools/transfer-to-human');
+const { transfer_to_human_config, transfer_to_human, handoff_not_sent_marker } = require('../tools/transfer-to-human');
+
+// Marker transfer_to_human returns when it deliberately didn't notify the team.
+export const HANDOFF_NOT_SENT_MARKER: string = handoff_not_sent_marker;
 
 export const MODEL = 'gpt-4o';
 

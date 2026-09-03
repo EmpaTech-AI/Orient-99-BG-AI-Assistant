@@ -4,7 +4,7 @@ import { HttpService } from '@nestjs/axios';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { CHANNELS, USER_ROLES } from './interfaces/enums';
-import { MODEL, INSTRUCTIONS, CHANNEL_CHAR_LIMITS, TOOLS, SUPPORTED_ACTIONS } from './assistant/config';
+import { MODEL, INSTRUCTIONS, CHANNEL_CHAR_LIMITS, TOOLS, SUPPORTED_ACTIONS, HANDOFF_NOT_SENT_MARKER } from './assistant/config';
 
 require('dotenv').config();
 
@@ -34,6 +34,24 @@ const HUMAN_HANDOFF_FALLBACK_MESSAGE = `Разбирам, че желаете д
 Email: office@orient99.com
 
 Ако желаете да продължите разговора с AI асистента, напишете: продължи разговора`;
+
+// Webchat has no GHL contact and no channel the team can reply on, so the
+// handoff is only useful once we have a phone/email. Used as the deterministic
+// fallback when the model recognised the handoff request but didn't ask for
+// contacts itself.
+const WEBCHAT_HANDOFF_CONTACT_REQUEST_MESSAGE = `Разбирам, че желаете да говорите с наш екип. За да Ви потърсим, моля напишете Вашето име, телефон и имейл в едно съобщение - телефонът е достатъчен, ако не желаете да оставите останалите.
+
+Междувременно можете да се свържете с нас и директно:
+Национален телефон: 0700 144 34
+Пловдив: 032 622 174
+София: 00359 2 987 01 07
+Email: office@orient99.com
+
+Ако желаете да продължите разговора с AI асистента, напишете: продължи разговора`;
+
+// Used to tell whether the model's own reply already asks for contact details,
+// so a correct context-aware reply isn't clobbered by the canned one above.
+const ASKS_FOR_CONTACTS_PATTERN = /телефон|имейл|e-?mail/i;
 
 @Injectable()
 export class AppService {
@@ -97,20 +115,31 @@ export class AppService {
         throw new Error('Model returned an empty response');
       }
 
-      if (HUMAN_HANDOFF_PATTERN.test(message) && !calledTools.has('transfer_to_human')) {
-        console.log(`[${channel}] Human handoff phrase detected but transfer_to_human wasn't called - forcing it.`);
-
-        await SUPPORTED_ACTIONS['transfer_to_human'].apply(null, [
-          { reason: 'Клиентът поиска да говори с оператор/представител.', customer_message: message, customer_name: '' },
-          { thread_id, channel, contact_id },
-        ]);
-
-        const forcedResponse = this.enforceChannelLimit(HUMAN_HANDOFF_FALLBACK_MESSAGE, channel);
-        console.log(`[${channel}] Reply (${forcedResponse.length} chars, forced handoff): ${forcedResponse}`);
-        return { response: forcedResponse };
-      }
-
       let outputText = this.stripOfferImage(response.output_text, channel);
+
+      if (HUMAN_HANDOFF_PATTERN.test(message) && !calledTools.has('transfer_to_human')) {
+        if (channel === CHANNELS.WEBCHAT) {
+          // Not calling the tool is correct here on the first turn - the model
+          // should be asking for a phone/email first. Only step in if its reply
+          // doesn't actually do that.
+          if (!ASKS_FOR_CONTACTS_PATTERN.test(outputText)) {
+            console.log(`[${channel}] Handoff phrase detected but the reply doesn't ask for contacts - using the canned contact request.`);
+            console.log(`[${channel}] Reply (${WEBCHAT_HANDOFF_CONTACT_REQUEST_MESSAGE.length} chars, forced contact request): ${WEBCHAT_HANDOFF_CONTACT_REQUEST_MESSAGE}`);
+            return { response: WEBCHAT_HANDOFF_CONTACT_REQUEST_MESSAGE };
+          }
+        } else {
+          console.log(`[${channel}] Human handoff phrase detected but transfer_to_human wasn't called - forcing it.`);
+
+          await SUPPORTED_ACTIONS['transfer_to_human'].apply(null, [
+            { reason: 'Клиентът поиска да говори с оператор/представител.', customer_message: message, customer_name: '', customer_phone: '', customer_email: '' },
+            { thread_id, channel, contact_id },
+          ]);
+
+          const forcedResponse = this.enforceChannelLimit(HUMAN_HANDOFF_FALLBACK_MESSAGE, channel);
+          console.log(`[${channel}] Reply (${forcedResponse.length} chars, forced handoff): ${forcedResponse}`);
+          return { response: forcedResponse };
+        }
+      }
 
       if (CHANNEL_CHAR_LIMITS[channel] && this.isReservationLinkBroken(outputText) && Date.now() - startedAt < RETRY_TIME_BUDGET_MS) {
         console.log(`[${channel}] Booking link looked cut off, retrying once...`);
@@ -148,7 +177,16 @@ export class AppService {
    * Webchat is left untouched to preserve existing behavior.
    */
   private buildInstructions(channel: CHANNELS): string {
-    const escalationReminder = '🚨 TOP PRIORITY - HUMAN ESCALATION\nIf the client\'s message expresses ANY desire to talk to a human, a real person, an operator, or a representative (e.g. "искам да говоря с човек", "дай ми оператор", "не искам бот", "свържете ме с представител"), you MUST call the transfer_to_human function as the very first action this turn - before writing any other reply, before asking clarifying questions, and before offering unrelated content. This overrides every other rule below, including the mandatory questionnaire.\n\n';
+    const escalationTrigger = 'If the client\'s message expresses ANY desire to talk to a human, a real person, an operator, or a representative (e.g. "искам да говоря с човек", "дай ми оператор", "не искам бот", "свържете ме с представител")';
+
+    // On webchat the team has no contact record and no channel to reply on, so
+    // the handoff needs a phone number to be actionable - reuse one already
+    // given earlier in the chat, otherwise ask once, then call the tool.
+    // Messenger/Instagram already have the contact in GHL, so there the tool
+    // is called immediately.
+    const escalationReminder = channel === CHANNELS.WEBCHAT
+      ? `🚨 TOP PRIORITY - HUMAN ESCALATION\n${escalationTrigger}, the team needs a way to call them back - this channel gives the team no contact details of its own.\nFirst check the conversation so far. If the client has ALREADY given a phone number earlier (for example when leaving their details for an offer), do NOT ask for anything again - call transfer_to_human immediately and pass everything you already know as customer_name, customer_phone and customer_email.\nOnly if no phone number is known yet: reply by asking for their name, phone number and email in one short message (together with the company contact details), make clear that the phone number is the one you really need, and do NOT call transfer_to_human yet. If their reply contains a phone number, call transfer_to_human straight away with whatever they gave. If it doesn't, you may ask once more specifically for the phone number; if they still don't give one, stop asking and just give them the company contact details.\nThe phone number is the only detail worth waiting for. A missing name or email must NEVER hold up the handoff - pass an empty string for whatever the client didn't give.\nThis overrides every other rule below, including the mandatory questionnaire and the Contact Timing Rule - that rule is about lead capture and does NOT apply to a human-handoff request.\n\n`
+      : `🚨 TOP PRIORITY - HUMAN ESCALATION\n${escalationTrigger}, you MUST call the transfer_to_human function as the very first action this turn - before writing any other reply, before asking clarifying questions, and before offering unrelated content. This overrides every other rule below, including the mandatory questionnaire. Pass customer_name, customer_phone and customer_email if the client has already given them, otherwise pass empty strings - do not stop to ask for them on this channel.\n\n`;
 
     const limit = CHANNEL_CHAR_LIMITS[channel];
 
@@ -242,10 +280,16 @@ export class AppService {
 
         if (SUPPORTED_ACTIONS[functionName]) {
           console.log(`This question requires us to call a function: ${functionName}`);
-          calledTools.add(functionName);
 
           const args = JSON.parse(call.arguments);
           const output = await SUPPORTED_ACTIONS[functionName].apply(null, [args, { thread_id, channel, contact_id }]);
+
+          // A handoff the tool deliberately refused to send (webchat with no
+          // phone yet) must not count as done, so the webchat safety net in
+          // chatCore still applies to this turn.
+          if (!(typeof output === 'string' && output.startsWith(HANDOFF_NOT_SENT_MARKER))) {
+            calledTools.add(functionName);
+          }
 
           console.log(output?.toString());
 
