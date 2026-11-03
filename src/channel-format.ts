@@ -18,6 +18,8 @@ export function formatForChannel(text: string, channel: CHANNELS): string {
   return text
     // Images first - "![a](b)" also contains a "[a](b)" link.
     .replace(/!\[[^\]]*\]\([^)]*\)[ \t]*\n*/g, '')
+    // Autolinks before links - "[a](<url>)" wraps its target in brackets.
+    .replace(/<(https?:\/\/[^>\s]+)>/gi, '$1')
     .replace(/\[([^\]\n]*)\]\(([^)\s]+)\)/g, (_, label: string, target: string) => (/^https?:\/\//i.test(target) ? target : label))
     .replace(/\*\*([^\n]+?)\*\*/g, '$1')
     .replace(/\*\*/g, '')
@@ -66,11 +68,10 @@ export function isReservationLinkBroken(text: string): boolean {
  * An offer without its link is useless to the client, so the booking line
  * and the offer fields above it are kept whole: whatever follows the
  * booking line goes first, then the intro is shortened, as the channel
- * prompt asks. Webchat is unaffected.
+ * prompt asks. A caller that appends its own footer passes the room left as
+ * `limit`. Webchat is unaffected.
  */
-export function enforceChannelLimit(text: string, channel: CHANNELS): string {
-  const limit = CHANNEL_CHAR_LIMITS[channel];
-
+export function enforceChannelLimit(text: string, channel: CHANNELS, limit = CHANNEL_CHAR_LIMITS[channel]): string {
   if (!limit || text.length <= limit) {
     return text;
   }
@@ -109,7 +110,7 @@ export function enforceChannelLimit(text: string, channel: CHANNELS): string {
   return cutAtWord(text, limit);
 }
 
-export function cutAtWord(text: string, limit: number): string {
+function cutAtWord(text: string, limit: number): string {
   if (text.length <= limit) {
     return text;
   }

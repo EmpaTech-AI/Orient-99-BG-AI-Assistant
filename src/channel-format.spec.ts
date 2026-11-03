@@ -79,6 +79,15 @@ describe('formatForChannel', () => {
 
     expect(formatForChannel(input, CHANNELS.MESSENGER)).toBe(`🏨 Хотел: LONICERA RESORT & SPA\n🔗 Резервация: ${BOOKING_URL}`);
   });
+
+  // protects=an angle-bracket autolink ("<https://...>") reaches Messenger as a bare URL, so the broken-link check does not retry a complete link; fails_when=the brackets survive and "Резервация: <https://..." is taken for a cut-off link; no_claim=autolinks with spaces or ">" inside the URL
+  it('unwraps an angle-bracket booking link on Messenger', () => {
+    const output = formatForChannel(`🔗 Резервация: <${BOOKING_URL}>`, CHANNELS.MESSENGER);
+
+    expect(output).toBe(`🔗 Резервация: ${BOOKING_URL}`);
+    expect(isReservationLinkBroken(output)).toBe(false);
+    expect(formatForChannel(`🔗 Резервация: [линк](<${BOOKING_URL}>)`, CHANNELS.MESSENGER)).toBe(`🔗 Резервация: ${BOOKING_URL}`);
+  });
 });
 
 describe('helpers moved out of AppService', () => {

@@ -5,7 +5,7 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { CHANNELS, USER_ROLES } from './interfaces/enums';
 import { MODEL, REASONING, INSTRUCTIONS, CHANNEL_CHAR_LIMITS, TOOLS, SUPPORTED_ACTIONS, HANDOFF_NOT_SENT_MARKER } from './assistant/config';
-import { formatForChannel, stripPriceDisclaimer, isReservationLinkBroken, enforceChannelLimit, cutAtWord } from './channel-format';
+import { formatForChannel, stripPriceDisclaimer, isReservationLinkBroken, enforceChannelLimit } from './channel-format';
 
 require('dotenv').config();
 
@@ -60,18 +60,64 @@ const ASKS_FOR_CONTACTS_PATTERN = /телефон|имейл|e-?mail/i;
 
 // The model sometimes promises that a colleague will follow up without calling
 // transfer_to_human, so nobody on the team hears about it. On Messenger and
-// Instagram such a promise is made true in code. An offer to connect
-// ("Желаете ли да Ви свържа с колега?") doesn't match.
-const COLLEAGUE_PROMISE_PATTERN = /колега(та)? от екипа ще Ви (изпрати|пише|отговори|потърси|се свърже)|колега ще се свърже с Вас/i;
+// Instagram such a promise is made true in code: a form of "колега" (колега,
+// колегата, колеги, колегите), then within the same sentence "ще" (Ви/се) and
+// изпрат-/пиш-/отговор-/потърс-/свърж-/обад-/звън-.
+const COLLEAGUE_PROMISE_PATTERN = /колег(?:а|ата|ите|и)(?![а-я])[^.!?\n]{0,40}?(?<![а-я])ще\s+(?:(?:Ви|се)\s+)*(?:изпрат|пиш|отговор|потърс|свърж|обад|звън)/i;
 
-// Added when that handoff reply lacks them: GHL pauses the AI after a handoff,
-// so the client needs the contacts and the way back to the assistant.
-const HANDOFF_CONTACTS = `Национален телефон: 0700 144 34
+// Not a promise: an offer ("Желаете ли...", "Ако желаете, ..."), a question,
+// a condition or a time clause ("..., ако имате въпроси", "След като
+// резервирате, ..."), or a request for contact details ("Оставете ми
+// телефон и колега ще Ви потърси"), which must reach capture_lead first.
+const NOT_A_PROMISE_PATTERN = /(?<![а-я])(?:ако|когато|щом)(?![а-я])|след като|при нужда|^[\s"„“'—–-]*желаете(?![а-я])|желаете\s+ли|\?|телефон|имейл|e-?mail/i;
+
+// A capture tool that stored the client's details already passed them on, so
+// its confirmation ("Колега от екипа ще Ви потърси...") is not a missing
+// handoff. resolveToolCalls only records a capture that stored something.
+const CAPTURE_TOOLS = ['capture_lead', 'capture_complaint'];
+const HANDOFF_TOOLS = ['transfer_to_human', ...CAPTURE_TOOLS];
+
+// What the client types to get the AI back after a handoff. A reply on that
+// turn that restates the earlier promise must not hand them over again.
+const RESUME_PHRASE = 'продължи разговора';
+
+// Every Messenger/Instagram reply after a handoff ends with this footer: GHL
+// pauses the AI after a handoff, so the client needs the contacts and the way
+// back. Same contacts as section 6 of instructions.ts and the canned messages
+// above - change them together. The model's own copy of each entry and of the
+// resume sentence is removed first, so the footer appears once.
+const HANDOFF_FOOTER = `Национален телефон: 0700 144 34
 Пловдив: 032 622 174
 София: 00359 2 987 01 07
 Email: office@orient99.com
 
-Ако желаете да продължите разговора с AI асистента, напишете: продължи разговора`;
+Ако желаете да продължите разговора с AI асистента, напишете: ${RESUME_PHRASE}`;
+const FOOTER_ENTRY_PATTERN = /[^\S\n]*(?:\p{Extended_Pictographic}️?[^\S\n]*)?(?:Национален телефон|Пловдив|София|Email)[^\S\n]*:[^\S\n]*(?:0700 144 34|032 622 174|00359 2 987 01 07|office@orient99\.com)[^\S\n]*/giu;
+const RESUME_SENTENCE_PATTERN = /[^.!?\n]*продължи разговора[^\n]*/giu;
+
+// Said when the length cut leaves no promise: a client who is handed over is
+// always told that someone will follow up.
+const HANDOFF_PROMISE_LINE = 'Колега от екипа ще се свърже с Вас.';
+
+function promisesColleague(text: string): boolean {
+  return text.split(/(?<=[.!?…])\s+|\n+/).some((sentence) => COLLEAGUE_PROMISE_PATTERN.test(sentence) && !NOT_A_PROMISE_PATTERN.test(sentence));
+}
+
+// Fits the reply into what the footer leaves, keeping the booking line.
+function withHandoffFooter(text: string, channel: CHANNELS): string {
+  const body = text.replace(FOOTER_ENTRY_PATTERN, '\n').replace(RESUME_SENTENCE_PATTERN, '')
+    .split('\n').map((line) => line.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const room = CHANNEL_CHAR_LIMITS[channel] - HANDOFF_FOOTER.length - 2;
+  let fitted = body ? enforceChannelLimit(body, channel, room) : '';
+
+  // The cut drops text after the booking line first, where a promise often sits.
+  if (!promisesColleague(fitted)) {
+    const shorter = body ? enforceChannelLimit(body, channel, room - HANDOFF_PROMISE_LINE.length - 1) : '';
+    fitted = shorter ? `${shorter}\n${HANDOFF_PROMISE_LINE}` : HANDOFF_PROMISE_LINE;
+  }
+
+  return `${fitted}\n\n${HANDOFF_FOOTER}`;
+}
 
 @Injectable()
 export class AppService {
@@ -162,20 +208,6 @@ export class AppService {
         }
       }
 
-      if (CHANNEL_CHAR_LIMITS[channel] && !calledTools.has('transfer_to_human') && COLLEAGUE_PROMISE_PATTERN.test(outputText)) {
-        console.log(`[${channel}] The reply promises a colleague but transfer_to_human wasn't called - calling it.`);
-
-        await SUPPORTED_ACTIONS['transfer_to_human'].apply(null, [
-          { reason: 'Агентът обеща, че колега от екипа ще се свърже с клиента.', customer_message: message, customer_name: '', customer_phone: '', customer_email: '' },
-          { thread_id, channel, contact_id },
-        ]);
-        calledTools.add('transfer_to_human');
-
-        if (!outputText.includes('0700 144 34')) {
-          outputText = `${cutAtWord(outputText, CHANNEL_CHAR_LIMITS[channel] - HANDOFF_CONTACTS.length - 2)}\n\n${HANDOFF_CONTACTS}`;
-        }
-      }
-
       if (CHANNEL_CHAR_LIMITS[channel] && isReservationLinkBroken(outputText) && Date.now() - startedAt < RETRY_TIME_BUDGET_MS) {
         console.log(`[${channel}] Booking link looked cut off, retrying once...`);
 
@@ -221,7 +253,34 @@ export class AppService {
       }
 
       const withoutDisclaimer = stripPriceDisclaimer(outputText, channel);
-      const finalResponse = enforceChannelLimit(withoutDisclaimer, channel);
+      let finalResponse = enforceChannelLimit(withoutDisclaimer, channel);
+
+      if (CHANNEL_CHAR_LIMITS[channel]) {
+        // Decided on the final text, after the retry: a retry that calls the
+        // tool itself isn't followed by a second handoff, and can't drop the
+        // footer. Once chat() has returned the fallback, the client never saw
+        // the promise, so nothing is owed.
+        const forceHandoff = !HANDOFF_TOOLS.some((tool) => calledTools.has(tool))
+          && !message.toLowerCase().includes(RESUME_PHRASE)
+          && Date.now() - startedAt < REQUEST_TIMEOUT_MS
+          && promisesColleague(withoutDisclaimer);
+
+        if (forceHandoff) {
+          console.log(`[${channel}] The reply promises a colleague but transfer_to_human wasn't called - calling it.`);
+
+          // Not awaited: the reply doesn't depend on the webhook, and a slow
+          // one must not push it past the request timeout.
+          Promise.resolve(SUPPORTED_ACTIONS['transfer_to_human'].apply(null, [
+            { reason: 'Агентът обеща, че колега от екипа ще се свърже с клиента.', customer_message: message, customer_name: '', customer_phone: '', customer_email: '' },
+            { thread_id, channel, contact_id },
+          ])).catch((e) => console.log(`[${channel}] Forced handoff failed: ${e}`));
+        }
+
+        if (forceHandoff || calledTools.has('transfer_to_human')) {
+          finalResponse = withHandoffFooter(withoutDisclaimer, channel);
+        }
+      }
+
       console.log(`[${channel}] Reply (${finalResponse.length} chars): ${finalResponse}`);
       return { response: finalResponse };
     } catch (e) {
@@ -288,8 +347,11 @@ export class AppService {
 
           // A handoff the tool deliberately refused to send (webchat with no
           // phone yet) must not count as done, so the webchat safety net in
-          // chatCore still applies to this turn.
-          if (!(typeof output === 'string' && output.startsWith(HANDOFF_NOT_SENT_MARKER))) {
+          // chatCore still applies to this turn. Likewise a capture that stored
+          // nothing (missing details, an Airtable error) passed nothing on.
+          const refusedHandoff = typeof output === 'string' && output.startsWith(HANDOFF_NOT_SENT_MARKER);
+          const storedNothing = CAPTURE_TOOLS.includes(functionName) && !(typeof output === 'string' && output.endsWith('stored successfully.'));
+          if (!refusedHandoff && !storedNothing) {
             calledTools.add(functionName);
           }
 

@@ -1,7 +1,20 @@
 import { AppService } from './app.service';
 import { CHANNELS } from './interfaces/enums';
+import { REASONING, SUPPORTED_ACTIONS } from './assistant/config';
 
 const BOOKING_URL = 'https://www.orient99.com/early_booking/lonicera-resort-spa';
+
+// app.service.ts loads .env at import, so a real tool here would post to the
+// production webhook or Airtable.
+let toolSpies: jest.SpyInstance[];
+
+beforeEach(() => {
+  toolSpies = ['transfer_to_human', 'capture_lead', 'capture_complaint'].map((name) => jest.spyOn(SUPPORTED_ACTIONS, name as any).mockResolvedValue('ok'));
+});
+
+afterEach(() => {
+  toolSpies.forEach((spy) => spy.mockRestore());
+});
 
 describe('AppService broken-link retry', () => {
   // protects=a cut-off Messenger booking link is retried once as a developer message (not as the client) and the fixed, formatted reply is returned; fails_when=no retry, more than one retry, the retry is sent with role "user" or without the language instruction, or the broken/unformatted reply is returned; no_claim=how the live model answers the retry (not exercised against OpenAI)
@@ -105,5 +118,25 @@ describe('AppService main reply formatting', () => {
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(result.response).toBe(`🏨 Хотел: LONICERA RESORT & SPA\n🔗 Резервация: ${BOOKING_URL}`);
+  });
+});
+
+describe('AppService reasoning parameter', () => {
+  // Value: protects=every responses.create call (first, tool follow-up, retry) carries the configured reasoning effort; fails_when=one call site drops reasoning, so gpt-6-luna runs at default effort and risks the 32s guard; why_new=no test inspects request params; seam=none; no_claim=that OpenAI accepts the parameter for MODEL (mocked client; unit only)
+  it('sends REASONING on the first, tool follow-up and retry calls', async () => {
+    process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test';
+    const service = new AppService({} as any);
+    const create = jest.fn()
+      .mockResolvedValueOnce({ output_text: '', output: [{ type: 'function_call', name: 'no_such_tool', call_id: 'c1', arguments: '{}' }] })
+      .mockResolvedValueOnce({ output_text: '🏨 Хотел: LONICERA RESORT & SPA\n🔗 Резервация: ', output: [] })
+      .mockResolvedValueOnce({ output_text: `🏨 Хотел: LONICERA RESORT & SPA\n🔗 Резервация: ${BOOKING_URL}`, output: [] });
+    (service as any).openai = { responses: { create } };
+
+    await service.chat({ thread_id: 'conv_test', message: 'Оферта?', channel: CHANNELS.MESSENGER });
+
+    expect(create).toHaveBeenCalledTimes(3);
+    for (const [params] of create.mock.calls) {
+      expect(params.reasoning).toEqual(REASONING);
+    }
   });
 });
