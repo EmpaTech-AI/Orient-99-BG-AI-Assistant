@@ -1,73 +1,65 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
-</p>
+# Orient99 AI assistant
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A NestJS service that answers Orient99 travel-agency clients on the website chat, Facebook Messenger and Instagram. It uses the OpenAI Responses API with file search over the agency's offers, and it can hand a conversation over to a human from the team.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## How it is called
 
-## Description
+| Endpoint | Purpose |
+|---|---|
+| `GET /start` | Creates a conversation and returns `{ "thread_id": "conv_..." }`. |
+| `POST /chat` | Body `{ "thread_id", "message", "channel"?, "contact_id"? }`, returns `{ "response": "..." }`. |
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Every request needs the `x-api-key` header, which must equal `SECURITY_API_KEY`.
 
-## Installation
+- `channel` is `webchat` (default), `messenger` or `instagram`. Messenger and Instagram replies are capped at 600 and 450 characters. Markdown is removed for them because those apps show it as raw text, and the booking link is never cut.
+- `contact_id` is the GoHighLevel contact id. GHL and Make.com send it on Messenger and Instagram so a handoff can find the contact.
+- A turn that takes longer than 32 seconds returns a short "please wait" reply, because the Make.com call times out at 40 seconds.
+
+## Handing a client over to the team
+
+The model calls the `transfer_to_human` tool when the client asks for a person, or when no matching offer exists for the hotel, destination or year the client asked about. The tool posts to a Make.com webhook, and GHL then pauses the AI for that contact until the client writes "продължи разговора".
+
+- **Webchat:** the team has no contact details, so the agent asks for a phone number before the handoff.
+- **Messenger and Instagram:** the handoff happens straight away. The reply that hands the client over ends with the agency's contacts and the resume phrase.
+
+The code also hands over when a social reply promises that a colleague will follow up but the tool was not called. That check matches the reply text and has known gaps.
+
+## Where things live
+
+| Path | What it is |
+|---|---|
+| `src/assistant/instructions.ts` | The system prompt. It is the only source of truth: `instructions/instructions.txt` is an old copy that nothing reads. |
+| `src/assistant/config.ts` | Model and reasoning effort, the vector store, and the tool list. |
+| `src/app.service.ts` | The conversation flow: tool calls, channel limits, the broken-link retry and the handoff. |
+| `src/channel-format.ts` | Messenger and Instagram formatting, and the length limits. |
+| `src/tools/` | Tool implementations: handoff webhook, lead and complaint capture (Airtable), date and time. |
+
+## Configuration
+
+These are set in the environment, or in `.env` for local runs. Never commit their values.
+
+| Variable | Used for |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI API |
+| `SECURITY_API_KEY` | The `x-api-key` every request must send |
+| `HUMAN_HANDOFF_WEBHOOK_URL` | Make.com handoff webhook for Messenger and Instagram |
+| `HUMAN_HANDOFF_WEBHOOK_URL_WEBCHAT` | Make.com handoff webhook for the website chat |
+| `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID` | Lead and complaint capture |
+| `PORT` | HTTP port (default 3000) |
+
+## Running and testing
 
 ```bash
-$ npm install
+npm install
+npm run start:dev   # watch mode
+npm run build && npm run start:prod
+npm test            # unit tests (jest, src/**/*.spec.ts)
 ```
 
-## Running the app
+The unit tests mock OpenAI, the handoff tool and the capture tools. `src/app.service.ts` loads `.env`, so a test that let one of those tools run for real would post to the live webhook or to Airtable.
+
+`test/replay-869fnmpyu.ts` replays scenarios based on real client conversations against the live model and checks the replies. It needs `OPENAI_API_KEY`, costs API credits and is not part of `npm test`. It replaces the handoff and capture tools with recorders, so nothing reaches the team.
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npx ts-node test/replay-869fnmpyu.ts [log-file]
 ```
-
-## Test
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](LICENSE).
