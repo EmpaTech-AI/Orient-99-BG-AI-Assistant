@@ -10,7 +10,18 @@ const { transfer_to_human_config, transfer_to_human, handoff_not_sent_marker } =
 // Marker transfer_to_human returns when it deliberately didn't notify the team.
 export const HANDOFF_NOT_SENT_MARKER: string = handoff_not_sent_marker;
 
-export const MODEL = 'gpt-4o';
+// gpt-6-luna replaced gpt-4o on 2026-11-03 (ClickUp 869fnmpyu). OpenAI shuts
+// gpt-4o down on 2027-01-14 and names gpt-6-luna as its replacement. In the
+// replay gpt-4o ignored a correct file_search hit and doubled prices, gpt-4.1
+// substituted a similar hotel and gpt-5.4-mini paired a hotel with another
+// hotel's booking link. Low reasoning keeps a turn well inside the 32s
+// timeout guard in app.service.ts.
+export const MODEL = 'gpt-6-luna';
+
+// Sent on every responses.create call. Only reasoning models accept it: if
+// MODEL changes to one without reasoning (gpt-4o, gpt-4.1), remove this too,
+// or every call fails with a 400 and the client only gets the fallback reply.
+export const REASONING = { effort: 'low' as const };
 
 export const INSTRUCTIONS = AXEL_INSTRUCTIONS;
 
@@ -24,6 +35,8 @@ export const CHANNEL_CHAR_LIMITS: Partial<Record<CHANNELS, number>> = {
 
 // Vector store / files backing the assistant's knowledge base, mirrored
 // from the live OpenAI assistant (asst_wbikeqOeWoxbLxRAE5VlrhJr) as of 2026-07-23.
+// CORE ANSWER RULES 3 and 5 in instructions.ts assume this store holds the
+// ended Summer 2026 season: update them together when the store is replaced.
 const VECTOR_STORE_ID = 'vs_69e4c252b3f08191a2b8c40396220d7c';
 const CODE_INTERPRETER_FILE_IDS = ['file-9K9jXy634wVu2Xt38AQHMP', 'file-4zYVPhMmhJHcd197q7tmRG'];
 

@@ -8,13 +8,13 @@
   const config = {
     "type": "function",
     "name": "transfer_to_human",
-    "description": "Call this when the user explicitly asks to speak with a human agent or live representative. Notifies the Orient 99 team so they can take over the conversation.",
+    "description": "Call this when the client asks to speak with a human agent or live representative, or when the offers don't include the hotel, destination or year/season the client explicitly asked for (CORE ANSWER RULES, rule 3). Notifies the Orient 99 team so they can take over the conversation.",
     "parameters": {
       "type": "object",
       "properties": {
         "reason": {
           "type": "string",
-          "description": "Brief reason the client wants to speak with a human, in Bulgarian, based on the conversation. Empty string if none was given."
+          "description": "Brief reason for the handoff, in Bulgarian: why the client wants a human, or \"Няма оферта в данните за: …\" when no matching offer exists. Empty string if none."
         },
         "customer_message": {
           "type": "string",
