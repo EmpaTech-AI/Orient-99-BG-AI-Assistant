@@ -5,7 +5,7 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { CHANNELS, USER_ROLES } from './interfaces/enums';
 import { MODEL, REASONING, INSTRUCTIONS, CHANNEL_CHAR_LIMITS, TOOLS, SUPPORTED_ACTIONS, HANDOFF_NOT_SENT_MARKER } from './assistant/config';
-import { formatForChannel, stripPriceDisclaimer, isReservationLinkBroken, enforceChannelLimit } from './channel-format';
+import { formatForChannel, stripPriceDisclaimer, isReservationLinkBroken, enforceChannelLimit, cutAtWord } from './channel-format';
 
 require('dotenv').config();
 
@@ -57,6 +57,21 @@ Email: office@orient99.com
 // Used to tell whether the model's own reply already asks for contact details,
 // so a correct context-aware reply isn't clobbered by the canned one above.
 const ASKS_FOR_CONTACTS_PATTERN = /телефон|имейл|e-?mail/i;
+
+// The model sometimes promises that a colleague will follow up without calling
+// transfer_to_human, so nobody on the team hears about it. On Messenger and
+// Instagram such a promise is made true in code. An offer to connect
+// ("Желаете ли да Ви свържа с колега?") doesn't match.
+const COLLEAGUE_PROMISE_PATTERN = /колега(та)? от екипа ще Ви (изпрати|пише|отговори|потърси|се свърже)|колега ще се свърже с Вас/i;
+
+// Added when that handoff reply lacks them: GHL pauses the AI after a handoff,
+// so the client needs the contacts and the way back to the assistant.
+const HANDOFF_CONTACTS = `Национален телефон: 0700 144 34
+Пловдив: 032 622 174
+София: 00359 2 987 01 07
+Email: office@orient99.com
+
+Ако желаете да продължите разговора с AI асистента, напишете: продължи разговора`;
 
 @Injectable()
 export class AppService {
@@ -144,6 +159,20 @@ export class AppService {
           const forcedResponse = enforceChannelLimit(HUMAN_HANDOFF_FALLBACK_MESSAGE, channel);
           console.log(`[${channel}] Reply (${forcedResponse.length} chars, forced handoff): ${forcedResponse}`);
           return { response: forcedResponse };
+        }
+      }
+
+      if (CHANNEL_CHAR_LIMITS[channel] && !calledTools.has('transfer_to_human') && COLLEAGUE_PROMISE_PATTERN.test(outputText)) {
+        console.log(`[${channel}] The reply promises a colleague but transfer_to_human wasn't called - calling it.`);
+
+        await SUPPORTED_ACTIONS['transfer_to_human'].apply(null, [
+          { reason: 'Агентът обеща, че колега от екипа ще се свърже с клиента.', customer_message: message, customer_name: '', customer_phone: '', customer_email: '' },
+          { thread_id, channel, contact_id },
+        ]);
+        calledTools.add('transfer_to_human');
+
+        if (!outputText.includes('0700 144 34')) {
+          outputText = `${cutAtWord(outputText, CHANNEL_CHAR_LIMITS[channel] - HANDOFF_CONTACTS.length - 2)}\n\n${HANDOFF_CONTACTS}`;
         }
       }
 

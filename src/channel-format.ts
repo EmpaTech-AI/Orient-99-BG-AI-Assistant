@@ -109,7 +109,7 @@ export function enforceChannelLimit(text: string, channel: CHANNELS): string {
   return cutAtWord(text, limit);
 }
 
-function cutAtWord(text: string, limit: number): string {
+export function cutAtWord(text: string, limit: number): string {
   if (text.length <= limit) {
     return text;
   }
