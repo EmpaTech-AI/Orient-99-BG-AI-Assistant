@@ -4,7 +4,8 @@ import { HttpService } from '@nestjs/axios';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { CHANNELS, USER_ROLES } from './interfaces/enums';
-import { MODEL, INSTRUCTIONS, CHANNEL_CHAR_LIMITS, TOOLS, SUPPORTED_ACTIONS, HANDOFF_NOT_SENT_MARKER } from './assistant/config';
+import { MODEL, REASONING, INSTRUCTIONS, CHANNEL_CHAR_LIMITS, TOOLS, SUPPORTED_ACTIONS, HANDOFF_NOT_SENT_MARKER } from './assistant/config';
+import { formatForChannel, stripPriceDisclaimer, isReservationLinkBroken, enforceChannelLimit } from './channel-format';
 
 require('dotenv').config();
 
@@ -20,6 +21,10 @@ const REQUEST_TIMEOUT_MS = 32000;
 // otherwise skip it and return what we already have rather than risk the
 // overall request timeout.
 const RETRY_TIME_BUDGET_MS = 18000;
+
+// The retry is cut off this long before REQUEST_TIMEOUT_MS, so a slow retry
+// still leaves time to return the first reply instead of the fallback.
+const RETRY_SAFETY_MARGIN_MS = 2000;
 
 // Requires an explicit "talk to a [real] person/operator/rep" construct, not
 // just the bare word "човек" (which routinely appears in "2 човека" party-size
@@ -52,6 +57,67 @@ Email: office@orient99.com
 // Used to tell whether the model's own reply already asks for contact details,
 // so a correct context-aware reply isn't clobbered by the canned one above.
 const ASKS_FOR_CONTACTS_PATTERN = /телефон|имейл|e-?mail/i;
+
+// The model sometimes promises that a colleague will follow up without calling
+// transfer_to_human, so nobody on the team hears about it. On Messenger and
+// Instagram such a promise is made true in code: a form of "колега" (колега,
+// колегата, колеги, колегите), then within the same sentence "ще" (Ви/се) and
+// изпрат-/пиш-/отговор-/потърс-/свърж-/обад-/звън-.
+const COLLEAGUE_PROMISE_PATTERN = /колег(?:а|ата|ите|и)(?![а-я])[^.!?\n]{0,40}?(?<![а-я])ще\s+(?:(?:Ви|се)\s+)*(?:изпрат|пиш|отговор|потърс|свърж|обад|звън)/i;
+
+// Not a promise: an offer ("Желаете ли...", "Ако желаете, ..."), a question,
+// a condition or a time clause ("..., ако имате въпроси", "След като
+// резервирате, ..."), or a request for contact details ("Оставете ми
+// телефон и колега ще Ви потърси"), which must reach capture_lead first.
+const NOT_A_PROMISE_PATTERN = /(?<![а-я])(?:ако|когато|щом)(?![а-я])|след като|при нужда|^[\s"„“'—–-]*желаете(?![а-я])|желаете\s+ли|\?|телефон|имейл|e-?mail/i;
+
+// A capture tool that stored the client's details already passed them on, so
+// its confirmation ("Колега от екипа ще Ви потърси...") is not a missing
+// handoff. resolveToolCalls only records a capture that stored something.
+const CAPTURE_TOOLS = ['capture_lead', 'capture_complaint'];
+const HANDOFF_TOOLS = ['transfer_to_human', ...CAPTURE_TOOLS];
+
+// What the client types to get the AI back after a handoff. A reply on that
+// turn that restates the earlier promise must not hand them over again.
+const RESUME_PHRASE = 'продължи разговора';
+
+// Every Messenger/Instagram reply after a handoff ends with this footer: GHL
+// pauses the AI after a handoff, so the client needs the contacts and the way
+// back. Same contacts as section 6 of instructions.ts and the canned messages
+// above - change them together. The model's own copy of each entry and of the
+// resume sentence is removed first, so the footer appears once.
+const HANDOFF_FOOTER = `Национален телефон: 0700 144 34
+Пловдив: 032 622 174
+София: 00359 2 987 01 07
+Email: office@orient99.com
+
+Ако желаете да продължите разговора с AI асистента, напишете: ${RESUME_PHRASE}`;
+const FOOTER_ENTRY_PATTERN = /[^\S\n]*(?:\p{Extended_Pictographic}️?[^\S\n]*)?(?:Национален телефон|Пловдив|София|Email)[^\S\n]*:[^\S\n]*(?:0700 144 34|032 622 174|00359 2 987 01 07|office@orient99\.com)[^\S\n]*/giu;
+const RESUME_SENTENCE_PATTERN = /[^.!?\n]*продължи разговора[^\n]*/giu;
+
+// Said when the length cut leaves no promise: a client who is handed over is
+// always told that someone will follow up.
+const HANDOFF_PROMISE_LINE = 'Колега от екипа ще се свърже с Вас.';
+
+function promisesColleague(text: string): boolean {
+  return text.split(/(?<=[.!?…])\s+|\n+/).some((sentence) => COLLEAGUE_PROMISE_PATTERN.test(sentence) && !NOT_A_PROMISE_PATTERN.test(sentence));
+}
+
+// Fits the reply into what the footer leaves, keeping the booking line.
+function withHandoffFooter(text: string, channel: CHANNELS): string {
+  const body = text.replace(FOOTER_ENTRY_PATTERN, '\n').replace(RESUME_SENTENCE_PATTERN, '')
+    .split('\n').map((line) => line.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const room = CHANNEL_CHAR_LIMITS[channel] - HANDOFF_FOOTER.length - 2;
+  let fitted = body ? enforceChannelLimit(body, channel, room) : '';
+
+  // The cut drops text after the booking line first, where a promise often sits.
+  if (!promisesColleague(fitted)) {
+    const shorter = body ? enforceChannelLimit(body, channel, room - HANDOFF_PROMISE_LINE.length - 1) : '';
+    fitted = shorter ? `${shorter}\n${HANDOFF_PROMISE_LINE}` : HANDOFF_PROMISE_LINE;
+  }
+
+  return `${fitted}\n\n${HANDOFF_FOOTER}`;
+}
 
 @Injectable()
 export class AppService {
@@ -102,6 +168,7 @@ export class AppService {
     try {
       let response = await this.openai.responses.create({
         model: MODEL,
+        reasoning: REASONING,
         instructions,
         tools: TOOLS as any,
         conversation: thread_id,
@@ -115,7 +182,7 @@ export class AppService {
         throw new Error('Model returned an empty response');
       }
 
-      let outputText = this.stripOfferImage(response.output_text, channel);
+      let outputText = formatForChannel(response.output_text, channel);
 
       if (HUMAN_HANDOFF_PATTERN.test(message) && !calledTools.has('transfer_to_human')) {
         if (channel === CHANNELS.WEBCHAT) {
@@ -135,35 +202,85 @@ export class AppService {
             { thread_id, channel, contact_id },
           ]);
 
-          const forcedResponse = this.enforceChannelLimit(HUMAN_HANDOFF_FALLBACK_MESSAGE, channel);
+          const forcedResponse = enforceChannelLimit(HUMAN_HANDOFF_FALLBACK_MESSAGE, channel);
           console.log(`[${channel}] Reply (${forcedResponse.length} chars, forced handoff): ${forcedResponse}`);
           return { response: forcedResponse };
         }
       }
 
-      if (CHANNEL_CHAR_LIMITS[channel] && this.isReservationLinkBroken(outputText) && Date.now() - startedAt < RETRY_TIME_BUDGET_MS) {
+      if (CHANNEL_CHAR_LIMITS[channel] && isReservationLinkBroken(outputText) && Date.now() - startedAt < RETRY_TIME_BUDGET_MS) {
         console.log(`[${channel}] Booking link looked cut off, retrying once...`);
 
-        let retry = await this.openai.responses.create({
-          model: MODEL,
-          instructions,
-          tools: TOOLS as any,
-          conversation: thread_id,
-          input: [{
-            role: USER_ROLES.USER,
-            content: 'Линкът за резервация в предходния отговор излезе отрязан/непълен. Изпрати повторно СЪЩАТА единствена оферта в пълния формат, но този път задължително с целия суров booking линк докрай, дори ако се наложи да съкратиш уводното изречение.',
-          }],
+        // A retry that fails or runs late must not cost the client the reply
+        // they already have, so it is raced against the time left and any
+        // error keeps outputText.
+        let retryTimer: NodeJS.Timeout;
+        const retryTimeout = new Promise<null>((resolve) => {
+          retryTimer = setTimeout(() => resolve(null), REQUEST_TIMEOUT_MS - (Date.now() - startedAt) - RETRY_SAFETY_MARGIN_MS);
         });
-        retry = await this.resolveToolCalls(thread_id, instructions, retry, channel, calledTools, contact_id);
 
-        const retryText = retry.output_text ? this.stripOfferImage(retry.output_text, channel) : '';
-        if (retryText && !this.isReservationLinkBroken(retryText)) {
-          outputText = retryText;
+        try {
+          // Sent as a developer message, not as the client: as a user message
+          // the model answered it like a meta request ("Here's the revised
+          // offer...") and in English.
+          const retryRequest = this.openai.responses.create({
+            model: MODEL,
+            reasoning: REASONING,
+            instructions,
+            tools: TOOLS as any,
+            conversation: thread_id,
+            input: [{
+              role: USER_ROLES.DEVELOPER,
+              content: 'Линкът за резервация в предходния ти отговор излезе непълен. Напиши отново същия отговор със същата оферта, но с целия суров booking линк. Отговори на същия език, на който пише клиентът (по подразбиране български). Не споменавай, че отговорът е повторен или коригиран.',
+            }],
+          }).then((retry) => this.resolveToolCalls(thread_id, instructions, retry, channel, calledTools, contact_id));
+
+          const retry = await Promise.race([retryRequest, retryTimeout]);
+
+          if (!retry) {
+            console.log(`[${channel}] Retry ran out of time, keeping the first reply.`);
+          } else {
+            const retryText = retry.output_text ? formatForChannel(retry.output_text, channel) : '';
+            if (retryText && !isReservationLinkBroken(retryText)) {
+              outputText = retryText;
+            }
+          }
+        } catch (e) {
+          console.log(`[${channel}] Retry failed, keeping the first reply: ${e}`);
+        } finally {
+          clearTimeout(retryTimer);
         }
       }
 
-      const withoutDisclaimer = this.stripPriceDisclaimer(outputText, channel);
-      const finalResponse = this.enforceChannelLimit(withoutDisclaimer, channel);
+      const withoutDisclaimer = stripPriceDisclaimer(outputText, channel);
+      let finalResponse = enforceChannelLimit(withoutDisclaimer, channel);
+
+      if (CHANNEL_CHAR_LIMITS[channel]) {
+        // Decided on the final text, after the retry: a retry that calls the
+        // tool itself isn't followed by a second handoff, and can't drop the
+        // footer. Once chat() has returned the fallback, the client never saw
+        // the promise, so nothing is owed.
+        const forceHandoff = !HANDOFF_TOOLS.some((tool) => calledTools.has(tool))
+          && !message.toLowerCase().includes(RESUME_PHRASE)
+          && Date.now() - startedAt < REQUEST_TIMEOUT_MS
+          && promisesColleague(withoutDisclaimer);
+
+        if (forceHandoff) {
+          console.log(`[${channel}] The reply promises a colleague but transfer_to_human wasn't called - calling it.`);
+
+          // Not awaited: the reply doesn't depend on the webhook, and a slow
+          // one must not push it past the request timeout.
+          Promise.resolve(SUPPORTED_ACTIONS['transfer_to_human'].apply(null, [
+            { reason: 'Агентът обеща, че колега от екипа ще се свърже с клиента.', customer_message: message, customer_name: '', customer_phone: '', customer_email: '' },
+            { thread_id, channel, contact_id },
+          ])).catch((e) => console.log(`[${channel}] Forced handoff failed: ${e}`));
+        }
+
+        if (forceHandoff || calledTools.has('transfer_to_human')) {
+          finalResponse = withHandoffFooter(withoutDisclaimer, channel);
+        }
+      }
+
       console.log(`[${channel}] Reply (${finalResponse.length} chars): ${finalResponse}`);
       return { response: finalResponse };
     } catch (e) {
@@ -195,67 +312,11 @@ export class AppService {
     }
 
     const softTarget = Math.round(limit * 0.8);
-    const imageRule = channel === CHANNELS.INSTAGRAM
-      ? 'Do NOT include the "![...](...)" image/thumbnail line at all on this channel - go straight from the intro to the offer fields. This frees up room so the booking URL always fits.'
-      : 'Keep the image, all mandatory fields, and the full raw booking URL.';
+    // Messenger and Instagram show markdown as raw text, so neither gets the
+    // image line, links or bold (formatForChannel also strips them as a backstop).
+    const imageRule = 'Do NOT include the "![...](...)" image/thumbnail line at all on this channel, and do not use markdown links or bold - go straight from the intro to the offer fields. This overrides the Mandatory Image Rendering Rule (section 9) on this channel.';
 
-    return `${escalationReminder}${INSTRUCTIONS}\n\n🚨 CHANNEL LENGTH LIMIT\nThis reply is being sent over ${channel}. Your entire response MUST NOT exceed ${limit} characters, including spaces and formatting. Aim to comfortably finish within ${softTarget} characters, leaving margin so you never run out of room mid-sentence.\nTo stay within that limit, present EXACTLY ONE offer or hotel per response on this channel - never 2 or 3, even where webchat normally would. Pick the single best match.\nThat one offer MUST always be complete and MUST NOT be cut off or shortened: ${imageRule} Pair it with a short one-sentence intro.\nThe booking URL is the single most important part of the reply. NEVER trail off with "..." instead of writing it out, and NEVER end the reservation line without the full URL. If you are running low on room, shorten or drop the intro sentence first - never the URL.\nOutput the booking URL as a bare raw link (no "[линк](...)" or other markdown wrapping) - it is shorter and matches the required raw-URL format.\nSkip the "*Имайте предвид, че цените на офертите са ориентировъчни.*" disclaimer line on this channel - do not include it.`;
-  }
-
-  /**
-   * The model doesn't reliably follow the "skip the price disclaimer"
-   * instruction, so it's stripped here instead. Matches from "Имайте
-   * предвид" to the end of the text so a self-truncated ("...ориентир…")
-   * copy is removed too. Webchat is unaffected.
-   */
-  private stripPriceDisclaimer(text: string, channel: CHANNELS): string {
-    if (!CHANNEL_CHAR_LIMITS[channel]) {
-      return text;
-    }
-
-    return text.replace(/\n*\*?\s*Имайте предвид,?\s*че цените[\s\S]*$/i, '').trimEnd();
-  }
-
-  /**
-   * Instagram drops the image line entirely to leave guaranteed room for the
-   * booking URL - the model doesn't reliably skip it on its own, so it's
-   * also stripped here. Messenger/webchat are unaffected.
-   */
-  private stripOfferImage(text: string, channel: CHANNELS): string {
-    if (channel !== CHANNELS.INSTAGRAM) {
-      return text;
-    }
-
-    return text.replace(/!\[[^\]]*\]\([^)]*\)\n*/g, '').trim();
-  }
-
-  /**
-   * Detects the model trailing off (e.g. "🔗 Резервация:…") instead of
-   * writing out the booking URL, which has been observed when it runs low
-   * on its self-estimated character budget near the end of a reply.
-   */
-  private isReservationLinkBroken(text: string): boolean {
-    const match = text.match(/Резервация:\s*(\S*)/);
-    return !!match && !/^https?:\/\//i.test(match[1]);
-  }
-
-  /**
-   * Last-resort safety net: the prompt asks the model to send exactly one
-   * complete offer so it naturally fits, so this should rarely trigger.
-   * Webchat is unaffected.
-   */
-  private enforceChannelLimit(text: string, channel: CHANNELS): string {
-    const limit = CHANNEL_CHAR_LIMITS[channel];
-
-    if (!limit || text.length <= limit) {
-      return text;
-    }
-
-    const truncated = text.slice(0, limit - 1);
-    const lastSpace = truncated.lastIndexOf(' ');
-    const cut = lastSpace > 0 ? truncated.slice(0, lastSpace) : truncated;
-
-    return `${cut}…`;
+    return `${escalationReminder}${INSTRUCTIONS}\n\n🚨 CHANNEL LENGTH LIMIT\nThis reply is being sent over ${channel}. Your entire response MUST NOT exceed ${limit} characters, including spaces and formatting. Aim to comfortably finish within ${softTarget} characters, leaving margin so you never run out of room mid-sentence.\nTo stay within that limit, present EXACTLY ONE offer or hotel per response on this channel - never 2 or 3, even where webchat normally would. Pick the single best match.\nThat one offer MUST always be complete and MUST NOT be cut off or shortened: ${imageRule} Pair it with a short one-sentence intro.\nThe booking URL is the single most important part of the reply. NEVER trail off with "..." instead of writing it out, and NEVER end the reservation line without the full URL. If you are running low on room, shorten or drop the intro sentence first - never the URL.\nOutput the booking URL as a bare raw link (no "[линк](...)" or other markdown wrapping) - it is shorter and matches the required raw-URL format.`;
   }
 
   /**
@@ -286,8 +347,11 @@ export class AppService {
 
           // A handoff the tool deliberately refused to send (webchat with no
           // phone yet) must not count as done, so the webchat safety net in
-          // chatCore still applies to this turn.
-          if (!(typeof output === 'string' && output.startsWith(HANDOFF_NOT_SENT_MARKER))) {
+          // chatCore still applies to this turn. Likewise a capture that stored
+          // nothing (missing details, an Airtable error) passed nothing on.
+          const refusedHandoff = typeof output === 'string' && output.startsWith(HANDOFF_NOT_SENT_MARKER);
+          const storedNothing = CAPTURE_TOOLS.includes(functionName) && !(typeof output === 'string' && output.endsWith('stored successfully.'));
+          if (!refusedHandoff && !storedNothing) {
             calledTools.add(functionName);
           }
 
@@ -312,6 +376,7 @@ export class AppService {
 
       response = await this.openai.responses.create({
         model: MODEL,
+        reasoning: REASONING,
         instructions,
         tools: TOOLS as any,
         conversation: thread_id,

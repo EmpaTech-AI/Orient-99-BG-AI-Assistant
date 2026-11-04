@@ -1,6 +1,7 @@
 export enum USER_ROLES {
     USER = 'user',
-    ASSISTANT = 'assistant'
+    ASSISTANT = 'assistant',
+    DEVELOPER = 'developer'
 };
 
 export enum SECONDS {
