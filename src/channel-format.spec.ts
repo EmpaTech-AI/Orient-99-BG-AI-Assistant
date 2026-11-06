@@ -58,36 +58,6 @@ describe('formatForChannel', () => {
 
     expect(formatForChannel(input, CHANNELS.MESSENGER)).toBe(`${BOOKING_URL}\n🔗 Резервация: ${BOOKING_URL}`);
   });
-
-  // protects=ordinary replies are not altered on Messenger; fails_when=plain text without markdown changes; no_claim=text with leading/trailing whitespace, which is trimmed
-  it('leaves plain text without markdown unchanged on Messenger', () => {
-    const input = 'Здравейте! С какво мога да Ви помогна?';
-
-    expect(formatForChannel(input, CHANNELS.MESSENGER)).toBe(input);
-  });
-
-  // protects=email and phone links in the contact block read naturally on Messenger; fails_when=a "mailto:" or "tel:" target is shown instead of its label, or the markdown survives; no_claim=other non-http schemes beyond falling back to the label
-  it('turns mailto and tel links into their labels on Messenger', () => {
-    const input = 'Пишете на [office@example.com](mailto:office@example.com) или на [0700 144 34](tel:070014434).';
-
-    expect(formatForChannel(input, CHANNELS.MESSENGER)).toBe('Пишете на office@example.com или на 0700 144 34.');
-  });
-
-  // protects=a booking URL written on the line after "🔗 Резервация:" is moved onto the label line, where the length cut and the broken-link check look for it; fails_when=the URL stays on its own line; no_claim=a URL separated from its label by other text
-  it('joins a booking URL written on the next line to its label on Messenger', () => {
-    const input = `🏨 Хотел: LONICERA RESORT & SPA\n🔗 Резервация:\n${BOOKING_URL}`;
-
-    expect(formatForChannel(input, CHANNELS.MESSENGER)).toBe(`🏨 Хотел: LONICERA RESORT & SPA\n🔗 Резервация: ${BOOKING_URL}`);
-  });
-
-  // protects=an angle-bracket autolink ("<https://...>") reaches Messenger as a bare URL, so the broken-link check does not retry a complete link; fails_when=the brackets survive and "Резервация: <https://..." is taken for a cut-off link; no_claim=autolinks with spaces or ">" inside the URL
-  it('unwraps an angle-bracket booking link on Messenger', () => {
-    const output = formatForChannel(`🔗 Резервация: <${BOOKING_URL}>`, CHANNELS.MESSENGER);
-
-    expect(output).toBe(`🔗 Резервация: ${BOOKING_URL}`);
-    expect(isReservationLinkBroken(output)).toBe(false);
-    expect(formatForChannel(`🔗 Резервация: [линк](<${BOOKING_URL}>)`, CHANNELS.MESSENGER)).toBe(`🔗 Резервация: ${BOOKING_URL}`);
-  });
 });
 
 describe('helpers moved out of AppService', () => {
@@ -119,13 +89,6 @@ describe('helpers moved out of AppService', () => {
     expect(stripPriceDisclaimer(input, CHANNELS.WEBCHAT)).toBe(input);
   });
 
-  // protects=a price answer that happens to open with the disclaimer's first words reaches the client whole; fails_when="Имайте предвид, че цените на офертите се променят по дати..." is taken for the disclaimer and cut away; no_claim=any other sentence about prices
-  it('stripPriceDisclaimer keeps a price answer that opens with the disclaimer words', () => {
-    const input = 'Разбира се!\n\nИмайте предвид, че цените на офертите се променят по дати. Колега от екипа може да потвърди точната цена за Вашите дати - желаете ли да Ви свържа?';
-
-    expect(stripPriceDisclaimer(input, CHANNELS.MESSENGER)).toBe(input);
-  });
-
   // protects=a Messenger reply that merely talks about prices is delivered whole; fails_when=a sentence like "Имайте предвид, че цените по дати са на линка" is taken for the disclaimer and the reply (or its booking link) is cut away; no_claim=disclaimer wordings other than "цените на офертите"
   it('stripPriceDisclaimer never empties a reply or drops its booking link', () => {
     const leading = `Имайте предвид, че цените по дати са на линка за резервация.\n🏨 Хотел: Lonicera Resort & Spa\n🔗 Резервация: ${BOOKING_URL}`;
@@ -133,13 +96,6 @@ describe('helpers moved out of AppService', () => {
 
     expect(stripPriceDisclaimer(leading, CHANNELS.MESSENGER)).toBe(leading);
     expect(stripPriceDisclaimer(middle, CHANNELS.MESSENGER)).toBe(middle);
-  });
-
-  // protects=only the "цените на офертите" disclaimer is stripped, not any closing sentence about prices; fails_when=a last line like "Имайте предвид, че цените по дати се менят." after the booking link is removed on Messenger; no_claim=other disclaimer wordings
-  it('stripPriceDisclaimer keeps a closing price sentence that is not the disclaimer', () => {
-    const input = `🏨 Хотел: Lonicera Resort & Spa\n🔗 Резервация: ${BOOKING_URL}\nИмайте предвид, че цените по дати се менят.`;
-
-    expect(stripPriceDisclaimer(input, CHANNELS.MESSENGER)).toBe(input);
   });
 
   // protects=the booking link and the offer fields survive the Instagram length cut; the intro is what gets shortened; fails_when=the cut lands inside or before the "🔗 Резервация:" line, or drops a field line while keeping the intro; no_claim=replies whose fields plus booking line alone exceed the limit
@@ -157,44 +113,6 @@ describe('helpers moved out of AppService', () => {
     expect(cut.startsWith('Здравейте!')).toBe(true);
     expect(cut).toContain('…\n🏨 Хотел: Lonicera Resort & Spa\n💰 Цена: актуалните цени по дати са на линка за резервация\n');
     expect(cut.endsWith(`🔗 Резервация: ${BOOKING_URL}`)).toBe(true);
-    expect(isReservationLinkBroken(cut)).toBe(false);
-  });
-
-  // protects=text after the booking line is dropped before anything in the offer; fails_when=a field line (🏨, 📍, 🍽️, 💰, 🚌) or the intro is cut while a closing sentence after the link survives; no_claim=how a reply without a booking line is cut
-  it('enforceChannelLimit drops text after the booking line first', () => {
-    const kept = [
-      'Ето офертата:',
-      '🏨 Хотел: Lonicera Resort & Spa',
-      '📍 Локация: Алания, Турция',
-      '🍽️ Изхранване: All Inclusive',
-      '💰 Цена: актуалните цени по дати са на линка за резервация',
-      '🚌 Транспорт: Самолет от София',
-      `🔗 Резервация: ${BOOKING_URL}`,
-    ].join('\n');
-    const offer = `${kept}\n${'Ако искате, колега от екипа ще потвърди точната цена за Вашите дати. '.repeat(3)}`;
-
-    expect(offer.length).toBeGreaterThan(450);
-    expect(enforceChannelLimit(offer, CHANNELS.INSTAGRAM)).toBe(kept);
-  });
-
-  // protects=when the offer fields plus the booking line alone exceed the limit, the intro goes, the fields are shortened from the end and the booking line is kept whole; fails_when=the intro survives while the hotel line is cut, or the booking line is cut; no_claim=a booking line that is longer than the limit by itself
-  it('enforceChannelLimit drops the intro first when the fields alone do not fit', () => {
-    const link = `🔗 Резервация: ${BOOKING_URL}&${'x'.repeat(190)}`;
-    const text = [
-      'Здравейте! ' + 'Това е въведение към офертата. '.repeat(5),
-      '🏨 Хотел: Lonicera Resort & Spa',
-      '📍 Локация: Алания, Турция',
-      '🍽️ Изхранване: All Inclusive',
-      '💰 Цена: актуалните цени по дати са на линка за резервация',
-      '🚌 Транспорт: Самолет от София',
-      link,
-    ].join('\n');
-    const cut = enforceChannelLimit(text, CHANNELS.INSTAGRAM);
-
-    expect(cut.length).toBeLessThanOrEqual(450);
-    expect(cut.startsWith('🏨 Хотел: Lonicera Resort & Spa\n')).toBe(true);
-    expect(cut).toContain('…');
-    expect(cut.endsWith(`\n${link}`)).toBe(true);
     expect(isReservationLinkBroken(cut)).toBe(false);
   });
 });

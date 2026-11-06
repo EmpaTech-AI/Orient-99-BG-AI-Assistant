@@ -28,8 +28,8 @@ The code also hands over when a social reply promises that a colleague will foll
 
 | Path | What it is |
 |---|---|
-| `src/assistant/instructions.ts` | The system prompt. It is the only source of truth: `instructions/instructions.txt` is an old copy that nothing reads. |
-| `src/assistant/config.ts` | Model and reasoning effort, the vector store, and the tool list. |
+| `src/assistant/instructions.ts` | The system prompt. It is the only source of truth. |
+| `src/assistant/config.ts` | Model and reasoning effort, and the tool list (`search_offers` for offers, `code_interpreter` for the two company documents). |
 | `src/app.service.ts` | The conversation flow: tool calls, channel limits, the broken-link retry and the handoff. |
 | `src/channel-format.ts` | Messenger and Instagram formatting, and the length limits. |
 | `src/tools/` | Tool implementations: handoff webhook, lead and complaint capture (Airtable), date and time. |

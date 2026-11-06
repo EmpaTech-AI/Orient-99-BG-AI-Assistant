@@ -342,7 +342,21 @@ export class AppService {
         if (SUPPORTED_ACTIONS[functionName]) {
           console.log(`This question requires us to call a function: ${functionName}`);
 
-          const args = JSON.parse(call.arguments);
+          // Arguments the model sent that are not valid JSON must not end the turn
+          // (the catch in chat() would reply with the waiting message and no
+          // handover). Tell the model instead and let the loop continue.
+          let args: unknown;
+          try {
+            args = JSON.parse(call.arguments);
+          } catch {
+            console.log(`Tool ${functionName} received arguments that are not valid JSON`);
+            toolOutputs.push({
+              type: 'function_call_output' as const,
+              call_id: call.call_id,
+              output: JSON.stringify({ error: 'invalid_input', fields: ['arguments'] }),
+            });
+            continue;
+          }
           const output = await SUPPORTED_ACTIONS[functionName].apply(null, [args, { thread_id, channel, contact_id }]);
 
           // A handoff the tool deliberately refused to send (webchat with no
