@@ -1,0 +1,58 @@
+name: Refresh offer catalog
+
+# Every 3 months (1st of Jan, Apr, Jul, Oct at 06:00 UTC) and on demand from the
+# Actions tab. The job never touches main: when the scraped catalog differs from
+# data/offers.json it opens a pull request for the engineer to review and merge.
+# Merging that PR is what makes Railway redeploy with the fresh catalog.
+on:
+  schedule:
+    - cron: '0 6 1 1,4,7,10 *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: catalog-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # The scraper refuses to write when a guard fails (broken pages, a sharp
+      # drop in offers, missing dates); the job then fails and nothing is opened.
+      - name: Scrape orient99.com
+        run: npm run catalog:refresh
+
+      - name: Open a pull request when the catalog changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- data/offers.json; then
+            echo "Catalog unchanged, no pull request."
+            exit 0
+          fi
+          BRANCH="chore/catalog-refresh-$(date -u +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add data/offers.json
+          git commit -m "data: scheduled catalog refresh from orient99.com"
+          git push origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "data: scheduled catalog refresh ($(date -u +%Y-%m-%d))" \
+            --body "Automatic refresh of data/offers.json from orient99.com. The scraper's guards (page health, offer drop, date yield) passed. Review the diff, merge to redeploy Railway. Nothing else changed."
