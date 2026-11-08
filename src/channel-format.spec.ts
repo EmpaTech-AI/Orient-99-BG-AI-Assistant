@@ -1,5 +1,5 @@
 import { CHANNELS } from './interfaces/enums';
-import { formatForChannel, stripPriceDisclaimer, isReservationLinkBroken, enforceChannelLimit } from './channel-format';
+import { formatForChannel, stripPriceDisclaimer, isReservationLinkBroken, leaksReasoning, enforceChannelLimit } from './channel-format';
 
 const BOOKING_URL = 'https://www.orient99.com/early_booking/lonicera-resort_spa?from=SOF&nights=7&room=dbl%20sea';
 
@@ -114,5 +114,13 @@ describe('helpers moved out of AppService', () => {
     expect(cut).toContain('…\n🏨 Хотел: Lonicera Resort & Spa\n💰 Цена: актуалните цени по дати са на линка за резервация\n');
     expect(cut.endsWith(`🔗 Резервация: ${BOOKING_URL}`)).toBe(true);
     expect(isReservationLinkBroken(cut)).toBe(false);
+  });
+});
+
+describe('leaksReasoning', () => {
+  it('spots the model\'s own notes in a reply and leaves a normal offer alone', () => {
+    expect(leaksReasoning('Да, има оферта със самолетен? Sorry autobús. Need Bulgarian clean.')).toBe(true);
+    expect(leaksReasoning('Sure, let me know the dates and we should find a hotel.')).toBe(false);
+    expect(leaksReasoning(`Ето офертата:\n🏨 Хотел: LONICERA RESORT & SPA\n🔗 Резервация: ${BOOKING_URL}`)).toBe(false);
   });
 });

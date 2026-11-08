@@ -63,6 +63,18 @@ export function isReservationLinkBroken(text: string): boolean {
 }
 
 /**
+ * The model sometimes writes its own working notes into the reply ("Sorry
+ * autobús. Need Bulgarian clean. ..."). A client must never see them; the
+ * caller asks for the reply once more. Only a reply that is Bulgarian (has
+ * Cyrillic) can leak: a genuinely English reply to an English-speaking client
+ * is not flagged.
+ */
+export function leaksReasoning(text: string): boolean {
+  const withoutLinks = text.replace(/https?:\/\/\S+/g, '');
+  return /[Ѐ-ӿ]/.test(withoutLinks) && /\b(need to|wait|sorry|should|let me|they asked|offer format)\b/i.test(withoutLinks);
+}
+
+/**
  * Last-resort safety net: the prompt asks the model to send exactly one
  * complete offer so it naturally fits, so this should rarely trigger.
  * An offer without its link is useless to the client, so the booking line

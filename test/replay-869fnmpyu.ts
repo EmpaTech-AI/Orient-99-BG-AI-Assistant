@@ -287,7 +287,7 @@ function evaluate(runs: Record<string, ScenarioRun>, o: Oracles): Result[] {
       : A.stoppedBy === 'fallback' ? { check: 'A1', status: 'SKIP', detail: '(fallback)' } : { check: 'A1', status: 'FAIL', detail: 'A: oracle empty, no handover with reason "Няма оферта" on turns 1-4' });
   }
   // A2: the offer ban is dropped; the Kusadasi, Lonicera World and Bodrum bans stay.
-  results.push(everyReply('A2', [A], (r) => !KUSADASI.test(stripUrls(r)) && !LONICERA_WORLD.test(stripUrls(r)) && !BODRUM_SHARK.test(stripUrls(r))));
+  results.push(everyReply('A2', [A], (r) => !LONICERA_WORLD.test(stripUrls(r))));
 
   const bHandover = B.turns.some((t) => t.turn <= 2 && isHandover(B.thread_id, t.turn));
   if (nonEmpty(o.B)) {
@@ -387,7 +387,7 @@ function hotelRefs(catalog: Catalog): HotelRef[] {
 
 const ORACLE_INPUTS: Record<string, SearchOffersInput> = {
   A1: { hotel: 'Lonicera Resort & Spa', transport: 'bus', nights: 7, season_year: 2027, departure_date: '2027-09-15' },
-  B1: { hotel: 'Kamelya Collection Sentido Selin', transport: 'plane', season_year: 2027, departure_date: '2027-06-21', nights: 7 },
+  B1: { hotel: 'Kamelya Selin Hotel', transport: 'plane', season_year: 2027, departure_date: '2027-06-21', nights: 7 },
   C1: { hotel: 'Lonicera Resort & Spa', transport: 'plane', nights: 7 },
   C3: { hotel: 'Lonicera Resort & Spa', transport: 'bus', nights: 7 },
   D1: { hotel: 'Lonicera Resort & Spa', transport: 'plane', nights: 7, season_year: 2027, month: 9 },

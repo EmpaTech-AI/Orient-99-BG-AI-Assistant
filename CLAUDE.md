@@ -8,4 +8,5 @@
 
 ## Process
 
-- Only the stages that prove something run: the change, `npm test`, one /review, the live replay when the agent's answers change, the PR, the second signature, the engineer's merge and live test. Skipped gates go to `.gstack-flightplan/overrides.jsonl` in the engineer's words.
+- Only the stages that prove something run: the change, `npm test`, one review, the live replay when the agent's answers change, the PR, the engineer's merge and live test. Skipped gates go to `.gstack-flightplan/overrides.jsonl` in the engineer's words.
+- Reviews and second opinions use the Elephant Goldfish Model plugin (`egm@egm`, agents `egm:*`, e.g. `egm:egm-design`, `egm:egm-codebase-details`) in place of the gstack `/review` skill (the engineer's decision of 2026-11-07). The reviewer gets the diff and the docs, not the conversation. Never Codex.
