@@ -53,6 +53,13 @@ jobs:
           git add data/offers.json
           git commit -m "data: scheduled catalog refresh from orient99.com"
           git push origin "$BRANCH"
-          gh pr create --base main --head "$BRANCH" \
+          # The repository setting "Allow GitHub Actions to create and approve pull
+          # requests" may be off. The pushed branch is the result either way; when
+          # the PR cannot be opened, say so and give the link to open it by hand.
+          if ! gh pr create --base main --head "$BRANCH" \
             --title "data: scheduled catalog refresh ($(date -u +%Y-%m-%d))" \
-            --body "Automatic refresh of data/offers.json from orient99.com. The scraper's guards (page health, offer drop, date yield) passed. Review the diff, merge to redeploy Railway. Nothing else changed."
+            --body "Automatic refresh of data/offers.json from orient99.com. The scraper's guards (page health, offer drop, date yield) passed. Review the diff, merge to redeploy Railway. Nothing else changed."; then
+            LINK="https://github.com/${GITHUB_REPOSITORY}/compare/main...${BRANCH}?expand=1"
+            echo "::warning::Catalog changed and branch ${BRANCH} was pushed, but the pull request could not be opened. Open it by hand: ${LINK}"
+            echo "Catalog refresh branch \`${BRANCH}\` is pushed. Open the pull request by hand: ${LINK}" >> "$GITHUB_STEP_SUMMARY"
+          fi
