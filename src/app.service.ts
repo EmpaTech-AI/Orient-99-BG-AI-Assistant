@@ -5,7 +5,7 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { CHANNELS, USER_ROLES } from './interfaces/enums';
 import { MODEL, REASONING, INSTRUCTIONS, CHANNEL_CHAR_LIMITS, TOOLS, SUPPORTED_ACTIONS, HANDOFF_NOT_SENT_MARKER } from './assistant/config';
-import { formatForChannel, stripPriceDisclaimer, isReservationLinkBroken, enforceChannelLimit } from './channel-format';
+import { formatForChannel, stripPriceDisclaimer, isReservationLinkBroken, leaksReasoning, enforceChannelLimit } from './channel-format';
 
 require('dotenv').config();
 
@@ -208,8 +208,9 @@ export class AppService {
         }
       }
 
-      if (CHANNEL_CHAR_LIMITS[channel] && isReservationLinkBroken(outputText) && Date.now() - startedAt < RETRY_TIME_BUDGET_MS) {
-        console.log(`[${channel}] Booking link looked cut off, retrying once...`);
+      const reasoningLeaked = leaksReasoning(outputText);
+      if (((CHANNEL_CHAR_LIMITS[channel] && isReservationLinkBroken(outputText)) || reasoningLeaked) && Date.now() - startedAt < RETRY_TIME_BUDGET_MS) {
+        console.log(`[${channel}] ${reasoningLeaked ? 'The reply contains the model\'s own notes' : 'Booking link looked cut off'}, retrying once...`);
 
         // A retry that fails or runs late must not cost the client the reply
         // they already have, so it is raced against the time left and any
@@ -231,7 +232,9 @@ export class AppService {
             conversation: thread_id,
             input: [{
               role: USER_ROLES.DEVELOPER,
-              content: 'Линкът за резервация в предходния ти отговор излезе непълен. Напиши отново същия отговор със същата оферта, но с целия суров booking линк. Отговори на същия език, на който пише клиентът (по подразбиране български). Не споменавай, че отговорът е повторен или коригиран.',
+              content: reasoningLeaked
+                ? 'Предходният ти отговор съдържаше твои собствени бележки. Напиши отново само крайното съобщение към клиента, на български, със същата оферта и целия суров booking линк, без бележки и без английски. Не споменавай, че отговорът е повторен или коригиран.'
+                : 'Линкът за резервация в предходния ти отговор излезе непълен. Напиши отново същия отговор със същата оферта, но с целия суров booking линк. Отговори на същия език, на който пише клиентът (по подразбиране български). Не споменавай, че отговорът е повторен или коригиран.',
             }],
           }).then((retry) => this.resolveToolCalls(thread_id, instructions, retry, channel, calledTools, contact_id));
 
@@ -241,7 +244,7 @@ export class AppService {
             console.log(`[${channel}] Retry ran out of time, keeping the first reply.`);
           } else {
             const retryText = retry.output_text ? formatForChannel(retry.output_text, channel) : '';
-            if (retryText && !isReservationLinkBroken(retryText)) {
+            if (retryText && !isReservationLinkBroken(retryText) && !leaksReasoning(retryText)) {
               outputText = retryText;
             }
           }
@@ -342,7 +345,21 @@ export class AppService {
         if (SUPPORTED_ACTIONS[functionName]) {
           console.log(`This question requires us to call a function: ${functionName}`);
 
-          const args = JSON.parse(call.arguments);
+          // Arguments the model sent that are not valid JSON must not end the turn
+          // (the catch in chat() would reply with the waiting message and no
+          // handover). Tell the model instead and let the loop continue.
+          let args: unknown;
+          try {
+            args = JSON.parse(call.arguments);
+          } catch {
+            console.log(`Tool ${functionName} received arguments that are not valid JSON`);
+            toolOutputs.push({
+              type: 'function_call_output' as const,
+              call_id: call.call_id,
+              output: JSON.stringify({ error: 'invalid_input', fields: ['arguments'] }),
+            });
+            continue;
+          }
           const output = await SUPPORTED_ACTIONS[functionName].apply(null, [args, { thread_id, channel, contact_id }]);
 
           // A handoff the tool deliberately refused to send (webchat with no

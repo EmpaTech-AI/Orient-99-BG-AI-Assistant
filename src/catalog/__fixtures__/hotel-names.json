@@ -1,0 +1,608 @@
+[
+ {
+  "hotel_id": "2135739",
+  "hotel": "SAPHIR HOTEL & VILLAS",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016519",
+  "hotel": "SENZA THE INN RESORT&SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2710299",
+  "hotel": "AZURA DELUXE RESORT&SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018834",
+  "hotel": "UTOPIA RESORT & RESIDENCE",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016370",
+  "hotel": "LONICERA RESORT & SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2129467",
+  "hotel": "LONG BEACH RESORT & SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016371",
+  "hotel": "HAYDARPASHA PALACE",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016552",
+  "hotel": "ROYAL GARDEN BEACH 5*",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016563",
+  "hotel": "MYLOME LUXURY HOTEL&RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016612",
+  "hotel": "GRANADA LUXURY BEACH AVSALAR",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016625",
+  "hotel": "VIKINGEN INFINITY RESORT& SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016668",
+  "hotel": "SERENITY QUEEN HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016623",
+  "hotel": "WHITE CITY RESORT HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3019286",
+  "hotel": "EOS BEACH RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2136310",
+  "hotel": "LONICERA WORLD HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016635",
+  "hotel": "CARETTA BEACH HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2103183",
+  "hotel": "EFTALIA SPLASH RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018821",
+  "hotel": "KAIA CORACESIUM (EX.VILLA SUNFLOWER BEACH HOTEL)",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016624",
+  "hotel": "WHITE CITY BEACH HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2103033",
+  "hotel": "DELPHIN BOTANIK PLATINUM",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2482929",
+  "hotel": "ORANGE COUNTY RESORT ALANYA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016517",
+  "hotel": "OZKAYMAK INCEKUM",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016518",
+  "hotel": "OZKAYMAK SELECT RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016674",
+  "hotel": "XORIA DELUXE RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "1586298",
+  "hotel": "HOLIDAY GARDEN RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2135639",
+  "hotel": "MUKARNAS SPA & RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2135769",
+  "hotel": "SAPHIR RESORT & SPA HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2136072",
+  "hotel": "HOLIDAY PARK RESORT HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2136155",
+  "hotel": "JUSTINIANO DELUXE RESORT HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2136362",
+  "hotel": "UTOPIA WORLD HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2183428",
+  "hotel": "RUBI HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2183563",
+  "hotel": "INSULA RESORT & SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2710441",
+  "hotel": "AYDINBEY GOLD DREAMS",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016548",
+  "hotel": "LONICERA PREMIUM",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2135713",
+  "hotel": "RUBI PLATINUM SPA RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016331",
+  "hotel": "CONCORDIA CELES",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018832",
+  "hotel": "RUBI PLATINUM SIGN",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3019280",
+  "hotel": "AZURA WORLD HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2709718",
+  "hotel": "ASKA JUST IN BEACH HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016372",
+  "hotel": "SEALIFE BUKET RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016473",
+  "hotel": "LITORE RESORT HOTEL & SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "1577635",
+  "hotel": "GRANADA LUXURY RESORT & SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "1580124",
+  "hotel": "DELPHIN BOTANIK HOTEL&RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "1584332",
+  "hotel": "DIZALYA PALM GARDEN",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2103062",
+  "hotel": "DELPHIN DELUXE RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2103091",
+  "hotel": "EFTALIA AQUA RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2103140",
+  "hotel": "EFTALIA MARIN RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2136124",
+  "hotel": "JUSTINIANO CLUB PARK CONTI",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2136180",
+  "hotel": "KIRMAN HOTELS ARYCANDA DE LUXE",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2136206",
+  "hotel": "KIRMAN HOTELS SIDERA LUXURY & SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2606837",
+  "hotel": "KIRMAN HOTELS LEODIKYA RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2690189",
+  "hotel": "EFTALIA OCEAN",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2709814",
+  "hotel": "DOGANAY BEACH CLUB HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016524",
+  "hotel": "NUMA BAY EXCLUSIVE",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016525",
+  "hotel": "WHITE CITY PALMERA RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016530",
+  "hotel": "CALIDO SOL HOTEL ( EX. STELLA BEACH )",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018841",
+  "hotel": "AQI PEGASOS RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018984",
+  "hotel": "EFTALIA BLUE",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016600",
+  "hotel": "MERIDIA BEACH HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3019294",
+  "hotel": "NOXINN DELUXE HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2183537",
+  "hotel": "SOLIVIA HOTEL (ex. TITAN SELECT)",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016533",
+  "hotel": "SEVEN SEAS PALMERAS BAY",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2136098",
+  "hotel": "JUSTINIANO CLUB ALANYA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2482937",
+  "hotel": "GRAND SANTANA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018830",
+  "hotel": "UTOPIA BEACH CLUB",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016474",
+  "hotel": "ARMAS GREEN FUGLA BEACH",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "1577612",
+  "hotel": "KLEOPATRA BEACH",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "1577626",
+  "hotel": "KLEOPATRA DREAMS BEACH",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2455201",
+  "hotel": "GALAXY BEACH HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016534",
+  "hotel": "ANITAS BEACH HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2103206",
+  "hotel": "EFTALIA VILLAGE HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "1586289",
+  "hotel": "HEDEF RESORT & SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "1966688",
+  "hotel": "MC ARANCIA RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2132552",
+  "hotel": "MC BEACH HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2135610",
+  "hotel": "MC MAHBERI BEACH HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2135794",
+  "hotel": "ALAIYE KLEOPATRA HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2135820",
+  "hotel": "ALAIYE RESORT & SPA HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2135920",
+  "hotel": "HEDEF BEACH RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2183513",
+  "hotel": "KLEOPATRA ADA BEACH HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2482935",
+  "hotel": "ANNABELLA DIAMOND",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2710097",
+  "hotel": "DIAMOND HILL RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2710380",
+  "hotel": "CLUB TITAN HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2710540",
+  "hotel": "GALERI RESORT HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2710702",
+  "hotel": "GRAND KAPTAN",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "2710783",
+  "hotel": "LAGUNA BEACH ALYA RESORT AND SPA HOTEL",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016338",
+  "hotel": "ALAN XAFIRA DELUXE RESORT & SPA",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016472",
+  "hotel": "THE LUMOS DELUXE RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016562",
+  "hotel": "CLUB KASTALIA HOLIDAY VILLAGE",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016567",
+  "hotel": "THE GARDEN BEACH",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016618",
+  "hotel": "WHITE CITY RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3016644",
+  "hotel": "RAYMAR RESORT&AQUA",
+  "destination": "Сиде",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018820",
+  "hotel": "BLUE MARLIN DELUXE SPA & RESORT",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018833",
+  "hotel": "KIRMAN ARYCANDA DELUXE",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018836",
+  "hotel": "CLUB HOTEL ANJELIQ",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018840",
+  "hotel": "TUI BLUE PASCHA BAY",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "3018979",
+  "hotel": "MIAROSA INCEKUM BEACH",
+  "destination": "Алания",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "fx-1",
+  "hotel": "KAMELYA COLLECTION SENTIDO SELIN HOTEL",
+  "destination": "Сиде",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "fx-2",
+  "hotel": "KAMELYA COLLECTION FULYA HOTEL",
+  "destination": "Сиде",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "fx-3",
+  "hotel": "KAMELYA COLLECTION AISHEN K CLUB",
+  "destination": "Сиде",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "fx-4",
+  "hotel": "Kamelia & Semeli Hotel",
+  "destination": "Сиде",
+  "region": "Анталия"
+ },
+ {
+  "hotel_id": "fx-6",
+  "hotel": "OZKAYMAK MARINA",
+  "destination": "Алания",
+  "region": "Анталия"
+ }
+]
