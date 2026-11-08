@@ -256,7 +256,9 @@ export function search(
 
   const month = targetMonth(input, today);
   const filters: Record<string, (c: Candidate) => boolean> = {};
-  if (input.transport) filters.transport = (c) => c.program.transport === input.transport;
+  // A cruise has no transport in the catalog (the ship is the transport), so a
+  // "plane" asked for alongside a cruise must not hide every cruise.
+  if (input.transport) filters.transport = (c) => c.program.transport === input.transport || (c.program.kind === 'cruise' && c.program.transport === null);
   if (input.season_year) {
     const y = input.season_year;
     filters.season_year = (c) =>
