@@ -152,6 +152,15 @@ describe('search: departure_date, month, season_year', () => {
   });
 });
 
+describe('search: cruises', () => {
+  // protects=a cruise asked for with transport "plane" and an exact date is still found (live Messenger 2026-11-08 handed over with total=0); fails_when=the cruise row is missing or its nearest departure is not 2027-06-14
+  it('kind cruise with transport plane and departure_date 2027-06-21 returns the cruise with the nearest departure', () => {
+    const r = run({ kind: 'cruise', season_year: 2027, transport: 'plane', departure_date: '2027-06-21' });
+    expect(r.rows.map((x) => x.kind)).toEqual(['cruise']);
+    expect(r.rows[0].nearest_departure).toBe('2027-06-14');
+  });
+});
+
 describe('search: limit, filters, output shape', () => {
   // protects=the tool returns at most 8 rows while total_matching counts all; the oracle gets everything with Infinity; fails_when=more than 8 rows by default, a wrong total, or a truncated Infinity result; no_claim=8 is the right size for a chat reply
   it('default limit is 8 with the full total; limit Infinity returns all', () => {
